@@ -9,15 +9,18 @@ import {
     ExpressionStatement,
     FunctionExpression,
     Identifier,
+    Literal,
     MemberExpression,
     MethodDefinitionComputedName,
-    TSEmptyBodyFunctionExpression,
-    Literal
+    TSEmptyBodyFunctionExpression
 } from "@typescript-eslint/types/dist/generated/ast-spec";
 import {JavaClass} from "../assembler/JavaClass";
-import {JavaMethod} from "../assembler/JavaMethod";
-import {JavaCodeAttribute} from "../assembler/attributes/JavaCodeAttribute";
-import {toBytes} from "../assembler/utils";
+import {JavaMethod, JavaMethodSignature} from "../assembler/JavaMethod";
+import {JavaType} from "../assembler/types/JavaType";
+import {ClassNameType} from "../assembler/types/ClassNameType";
+import {SimpleType} from "../assembler/types/SimpleType";
+import {JavaCodeBlock} from "./JavaCodeBlock";
+import {Lazy} from "../util/Lazy";
 
 interface NodeWithType {
     type: AST_NODE_TYPES;
@@ -33,60 +36,22 @@ function assertNodeType<T extends NodeWithType>(node: NodeWithType, expected: AS
 
 interface FieldMeta {
     readonly name: string;
-    readonly classes: ToTypeRef[];
+    readonly classes: JavaType[];
 }
 
 interface MethodMeta {
     readonly name: string;
-    readonly args: ToTypeRef[];
-    readonly returns: ToTypeRef;
+    readonly sig: JavaMethodSignature;
 }
 
 interface ClassMeta {
     readonly name: string;
-    readonly qualifiedName: ToTypeRef;
+    readonly qualifiedName: JavaType;
     readonly fields: Record<string, FieldMeta>;
     readonly methods: Record<string, MethodMeta>;
 }
 
-interface ToTypeRef {
-    toTypeRef(): string;
-    getName(): string;
-}
-
-class ClassName implements ToTypeRef {
-    private readonly name: string;
-
-    constructor(name: string) {
-        this.name = name;
-    }
-
-    public toTypeRef(): string {
-        return "L" + this.name;
-    }
-
-    public getName(): string {
-        return this.name;
-    }
-}
-
-class SimpleType implements ToTypeRef {
-    private readonly name: string;
-
-    constructor(name: string) {
-        this.name = name;
-    }
-
-    public toTypeRef(): string {
-        return this.name[0];
-    }
-
-    public getName(): string {
-        return this.name;
-    }
-}
-
-class GlobalCompileContext {
+class FileCompileContext {
     private readonly importedClasses: Map<string, string>;
     private readonly loadedClasses: Map<string, ClassMeta>;
     public readonly allClasses: JavaClass[];
@@ -95,33 +60,32 @@ class GlobalCompileContext {
         this.loadedClasses = new Map<string, ClassMeta>();
         this.loadedClasses.set("java/lang/Object", {
             name: "Object",
-            qualifiedName: new ClassName("java/lang/Object"),
+            qualifiedName: new ClassNameType("java/lang/Object"),
             fields: {},
             methods: {}
         });
         this.loadedClasses.set("java/lang/System", {
             name: "System",
-            qualifiedName: new ClassName("java/lang/System"),
+            qualifiedName: new ClassNameType("java/lang/System"),
             fields: {
                 "out": {
                     name: "out",
-                    classes: [new ClassName("java/io/PrintStream")],
+                    classes: [new ClassNameType("java/io/PrintStream")],
                 }
             },
             methods: {}
         });
         this.loadedClasses.set("java/io/PrintStream", {
             name: "PrintStream",
-            qualifiedName: new ClassName("java/io/PrintStream"),
+            qualifiedName: new ClassNameType("java/io/PrintStream"),
             fields: {
             },
             methods: {
                 "println": {
                     name: "println",
-                    args: [
-                        new ClassName("java/lang/String"),
-                    ],
-                    returns: new SimpleType("Void"),
+                    sig: new JavaMethodSignature([
+                        new ClassNameType("java/lang/String"),
+                    ], SimpleType.VOID),
                 }
             }
         });
@@ -157,10 +121,10 @@ class GlobalCompileContext {
 }
 
 class CompileContext {
-    public readonly globalCtx: GlobalCompileContext;
+    public readonly globalCtx: FileCompileContext;
     private readonly clss: JavaClass;
 
-    constructor(globalCtx: GlobalCompileContext, clss: JavaClass) {
+    constructor(globalCtx: FileCompileContext, clss: JavaClass) {
         this.clss = clss;
         this.globalCtx = globalCtx;
     }
@@ -180,25 +144,17 @@ class CompileContext {
 
 class MethodCompileContext extends CompileContext {
     private readonly method: JavaMethod;
-    private codeAttribute: JavaCodeAttribute | null;
+    private code: Lazy<JavaCodeBlock>;
 
-    constructor(globalCtx: GlobalCompileContext, clss: JavaClass, method: JavaMethod) {
+    constructor(globalCtx: FileCompileContext, clss: JavaClass, method: JavaMethod) {
         super(globalCtx, clss);
         this.method = method;
-        this.codeAttribute = null;
+        this.code = new Lazy(() => new JavaCodeBlock(this.method,
+            clss.constantPool));
     }
 
-    public getMethod(): JavaMethod {
-        return this.method;
-    }
-
-    public getCode(): JavaCodeAttribute {
-        if(!this.codeAttribute) {
-            this.codeAttribute = new JavaCodeAttribute();
-            this.method.addAttribute(this.codeAttribute);
-        }
-
-        return this.codeAttribute;
+    public getCode(): JavaCodeBlock {
+        return this.code.get();
     }
 
     public static assertType(context: CompileContext): MethodCompileContext {
@@ -227,7 +183,7 @@ class Compiler {
     }
 
     public compile(node: AST<any>): JavaClass[] {
-        const globalContext = new GlobalCompileContext();
+        const globalContext = new FileCompileContext();
         const context = globalContext.createContext(this.globalClass);
         this.handle(node, context);
         return globalContext.allClasses;
@@ -279,18 +235,18 @@ class Compiler {
         const methodContext = new MethodCompileContext(context.globalCtx,
             context.getCurrentClass(), method);
         context.getCurrentClass().addMethod(method);
-        methodContext.getCode().addLocal(1);
-        methodContext.getCode().addStackSize(2);
 
         this.handle(namedNode.value, methodContext);
 
     //    Assume there was no return
-        methodContext.getCode().addInstruction([0xb1]);
+        methodContext.getCode().returnInstr();
     }
 
-    private extractSignature(node: FunctionExpression | TSEmptyBodyFunctionExpression): string {
+    private extractSignature(node: FunctionExpression | TSEmptyBodyFunctionExpression): JavaMethodSignature {
         // Method dec sig
-        return "([Ljava/lang/String;)V";
+        return new JavaMethodSignature([
+            new ClassNameType("java/lang/String", true)
+        ], SimpleType.VOID);
     }
 
     public handleFunctionExpr(node: NodeWithType, context: CompileContext) {
@@ -330,13 +286,8 @@ class Compiler {
         const fieldClass = field.classes[0].getName();
         const propName = this.evaluate(memberExpr.property as Expression, context);
         const methodMeta = methodContext.getClassMeta(fieldClass).methods[propName];
-        const methodRefHandle = methodContext.getCurrentClass().constantPool.addMethodRefWithName(
-            fieldClass,
-            propName,
-            this.toTypeRefWithReturn(methodMeta.args, methodMeta.returns)
-        );
-        methodContext.getCode()
-            .addInstruction([0xb6, ...toBytes(methodRefHandle, 2)])
+        methodContext.getCode().invokevirtualInstr(fieldClass, propName,
+            methodMeta.sig)
 
     }
 
@@ -347,20 +298,14 @@ class Compiler {
         const qualifiedObjClass = methodContext.getQualifiedNameFor(obj);
         const classMeta = methodContext.getClassMeta(qualifiedObjClass);
         const propMeta = classMeta.fields[prop];
-        const propType = this.toTypeRef(propMeta.classes);
+        const propType = JavaType.join(propMeta.classes);
+        methodContext.getCode().getstaticInstr(
+            classMeta.qualifiedName.getName(),
+            prop,
+            propType
+        );
 
-        const fieldRefHandle = methodContext.getCurrentClass().constantPool
-            .addFieldRefWithName(qualifiedObjClass, prop, propType);
-        methodContext.getCode().addInstruction([0xb2, ...toBytes(fieldRefHandle, 2)])
         return propMeta;
-    }
-
-    private toTypeRef(types: ToTypeRef[]): string {
-        return types.map((typ) => typ.toTypeRef() + ";").join("");
-    }
-
-    private toTypeRefWithReturn(types: ToTypeRef[], returns: ToTypeRef): string {
-        return `(${this.toTypeRef(types)})${returns.toTypeRef()}`;
     }
 
     public handleLiteral(node: NodeWithType, context: CompileContext) {
@@ -368,10 +313,7 @@ class Compiler {
         const methodContext = MethodCompileContext.assertType(context);
 
         const literalValue = literal.value ?? "null";
-
-        const stringHandle = context.getCurrentClass().constantPool
-            .addStringWithValue(literalValue.toString());
-        methodContext.getCode().addInstruction([0x12, ...toBytes(stringHandle, 1)])
+        methodContext.getCode().loadconstInstr(literalValue.toString())
     }
 
     public evalTSType(node: any, context: CompileContext): string {

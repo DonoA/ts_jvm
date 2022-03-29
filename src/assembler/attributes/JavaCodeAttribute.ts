@@ -18,8 +18,8 @@ export class JavaCodeAttribute extends JavaAttribute {
         this.attributes = [];
     }
 
-    public addStackSize(count?: uint8) {
-        this.maxStack = (count ?? 1);
+    public setStackSize(count: uint8) {
+        this.maxStack = (count);
     }
 
     public addLocal(count?: uint8) {
