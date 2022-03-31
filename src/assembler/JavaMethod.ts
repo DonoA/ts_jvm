@@ -3,7 +3,7 @@ import {JavaAttribute} from "./attributes/JavaAttribute";
 import {JavaClass} from "./JavaClass";
 import {ConstantPool} from "./ConstantPool";
 import {JavaCodeAttribute} from "./attributes/JavaCodeAttribute";
-import {JavaType} from "./types/JavaType";
+import {JavaType} from "./JavaType";
 
 export class JavaMethodSignature {
     readonly args: JavaType[];
