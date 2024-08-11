@@ -17,34 +17,23 @@ export class FileCompileContext {
             fields: {},
             methods: {}
         });
-        this.loadedClasses.set("java/lang/System", {
-            name: "System",
-            qualifiedName: JavaType.forClass("java/lang/System"),
-            fields: {
-                "out": {
-                    name: "out",
-                    classes: [JavaType.forClass("java/io/PrintStream")],
-                }
-            },
-            methods: {}
-        });
-        this.loadedClasses.set("java/io/PrintStream", {
-            name: "PrintStream",
-            qualifiedName: JavaType.forClass("java/io/PrintStream"),
+        this.loadedClasses.set("me/doallen/tsjvm/Console", {
+            name: "Console",
+            qualifiedName: JavaType.forClass("me/doallen/tsjvm/Console"),
             fields: {},
             methods: {
-                "println": {
-                    name: "println",
+                "log": {
+                    name: "log",
                     sig: new JavaMethodSignature([
                         JavaType.forClass("java/lang/String"),
                     ], JavaType.VOID),
                 }
-            }
+            },
         });
 
         this.importedClasses = new Map<string, string>();
         this.importedClasses.set("Object", "java/lang/Object");
-        this.importedClasses.set("System", "java/lang/System");
+        this.importedClasses.set("console", "me/doallen/tsjvm/Console");
 
         this.allClasses = [];
     }

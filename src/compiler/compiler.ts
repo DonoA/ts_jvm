@@ -145,8 +145,11 @@ class Compiler {
 
         const memberExpr = call.callee as MemberExpression;
 
-        // Load function ref
-        const field = this.handleMemberFieldExpr(memberExpr.object as MemberExpression, methodContext);
+        // // Load function ref
+        const obj = this.evaluate(memberExpr.object, methodContext);
+        const qualifiedObjClass = methodContext.getQualifiedNameFor(obj);
+        // const classMeta = methodContext.getClassMeta(qualifiedObjClass);
+        // const field = this.handleMemberFieldExpr(memberExpr, methodContext);
 
         // Load params
         call.arguments.forEach((arg) => {
@@ -154,11 +157,12 @@ class Compiler {
         });
 
         // Invoke method
-        const fieldClass = field.classes[0].name;
         const propName = this.evaluate(memberExpr.property as Expression, context);
-        const methodMeta = methodContext.getClassMeta(fieldClass).methods[propName];
-        methodContext.getCode().invokevirtualInstr(fieldClass, propName,
-            methodMeta.sig)
+        const methodMeta = methodContext.getClassMeta(qualifiedObjClass).methods[propName];
+        methodContext.getCode().invokestaticInstr(qualifiedObjClass, propName,
+            methodMeta.sig);
+        // methodContext.getCode().invokevirtualInstr(qualifiedObjClass, propName,
+        //     methodMeta.sig);
 
     }
 

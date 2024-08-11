@@ -4,3 +4,4 @@
 node_modules/
 tests/outputs/*
 ast.json
+TsJvm-1.0-SNAPSHOT.jar

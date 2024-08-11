@@ -45,6 +45,15 @@ export class JavaCodeBlock {
         this.addStackSize(-typeSignature.args.length);
     }
 
+    public invokestaticInstr(ofClass: string, prop: string,
+                            typeSignature: JavaMethodSignature) {
+        const methodRefHandle = this.constantPool.addMethodRefWithName(ofClass,
+            prop, typeSignature.getTypeString());
+        this.javaMethod.getCode()
+            .addInstruction([0xb8, ...toBytes(methodRefHandle, 2)])
+        this.addStackSize(-typeSignature.args.length);
+    }
+
     public returnInstr() {
         this.javaMethod.getCode().addInstruction([0xb1]);
     }
