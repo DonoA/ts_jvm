@@ -20,6 +20,10 @@ export class JavaMethodSignature {
 }
 
 export class JavaMethod implements ToBytes<ConstantPool>{
+    static ACCESS = {
+        PUBLIC: 0x9
+    }
+
     readonly accessFlags: uint16;
     readonly name: string;
     readonly signature: JavaMethodSignature;

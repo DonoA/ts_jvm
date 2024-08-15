@@ -19,11 +19,12 @@ import {JavaMethod, JavaMethodSignature} from "../assembler/JavaMethod";
 import {JavaType} from "../assembler/JavaType";
 import {TypeCompiler} from "./TypeCompiler";
 import {CompileContext} from "./context/CompileContext";
-import {FileCompileContext} from "./context/FileCompileContext";
+import {FileScope} from "./context/FileScope";
 import {FieldMeta} from "./meta/FieldMeta";
 import {MethodCompileContext} from "./context/MethodCompileContext";
 import {PartialRecord} from "../util/PartialRecord";
 import {assertNodeType, NodeWithType} from "./AssertNodeType";
+import { ClassCompileContext } from "./context/ClassCompileContext";
 
 
 
@@ -32,22 +33,15 @@ type NodeEvaluator = (node: any, context: CompileContext) => string;
 
 class Compiler {
 
-    readonly globalClass: JavaClass;
-
-    readonly majorVersion: number = 0x34;
-    readonly minorVersion: number = 0;
-
     constructor() {
-        this.globalClass = new JavaClass("GlobalClass",
-            "java/lang/Object", this.minorVersion, this.majorVersion,
-            0x21);
     }
 
-    public compile(node: AST<any>): JavaClass[] {
-        const globalContext = new FileCompileContext();
-        const context = globalContext.createContext(this.globalClass);
+    public compile(node: AST<any>, fileName: string): JavaClass[] {
+        const fileScope = new FileScope(fileName);
+        const context = ClassCompileContext.createMainMethod(fileScope);
+        
         this.handle(node, context);
-        return globalContext.allClasses;
+        return fileScope.allClasses;
     }
 
     public handleProgram(node: NodeWithType, context: CompileContext) {
@@ -64,11 +58,9 @@ class Compiler {
         let superClassName = classDeclaration.superClass ?
             this.evaluate(classDeclaration.superClass, context) : "Object";
         const superClass = context.getQualifiedNameFor(superClassName);
-        const clss = new JavaClass(name,
-            superClass, this.minorVersion, this.majorVersion,
-            0x21);
+        const clss = new JavaClass(JavaClass.ACCESS.PUBLIC, name, superClass);
 
-        const newContext = context.globalCtx.createContext(clss);
+        const newContext = ClassCompileContext.createClassContext(context.fileContext, clss);
 
         this.handle(classDeclaration.body, newContext);
     }
@@ -89,18 +81,13 @@ class Compiler {
         const namedNode: MethodDefinitionComputedName = assertNodeType(node,
             AST_NODE_TYPES.MethodDefinition);
         const name = this.evaluate(namedNode.key, context);
+        const classContext = ClassCompileContext.assertType(context);
 
         const signature = this.extractSignature(namedNode.value, context);
-
-        const method = new JavaMethod(0x9, name, signature)
-        const methodContext = new MethodCompileContext(context.globalCtx,
-            context.getCurrentClass(), method);
-        context.getCurrentClass().addMethod(method);
+        const method = new JavaMethod(JavaMethod.ACCESS.PUBLIC, name, signature)
+        const methodContext = MethodCompileContext.createMethodContext(classContext, method);
 
         this.handle(namedNode.value, methodContext);
-
-    //    Assume there was no return
-        methodContext.getCode().returnInstr();
     }
 
     private extractSignature(node: FunctionExpression | TSEmptyBodyFunctionExpression,
@@ -222,7 +209,7 @@ class Compiler {
     }
 }
 
-export function compile(ast: AST<any>): JavaClass[] {
+export function compile(ast: AST<any>, fileName: string): JavaClass[] {
     const compiler = new Compiler();
-    return compiler.compile(ast);
+    return compiler.compile(ast, fileName);
 }

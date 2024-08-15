@@ -6,6 +6,12 @@ import {JavaAttribute} from "./attributes/JavaAttribute";
 const JAVA_MAGIC = 0xcafebabe;
 
 export class JavaClass {
+    static readonly majorVersion: number = 0x34;
+    static readonly minorVersion: number = 0;
+    public static ACCESS = {
+        PUBLIC: 0x21
+    }
+
     readonly className: string;
 
     readonly magic: uint32 = JAVA_MAGIC;
@@ -28,11 +34,11 @@ export class JavaClass {
     // attribute_info attributes[attributes_count];
     readonly attributes: JavaAttribute[];
 
-    constructor(className: string, superClass: string, minor_version: uint16, major_version: uint16, access_flags: uint16) {
+    constructor(access_flags: uint16, className: string, superClass: string) {
         this.className = className;
 
-        this.minorVersion = minor_version;
-        this.majorVersion = major_version;
+        this.minorVersion = JavaClass.minorVersion;
+        this.majorVersion = JavaClass.majorVersion;
         this.accessFlags = access_flags;
 
         this.constantPool = new ConstantPool();

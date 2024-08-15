@@ -1,15 +1,19 @@
 import {JavaClass} from "../../assembler/JavaClass";
 import {JavaType} from "../../assembler/JavaType";
-import {JavaMethodSignature} from "../../assembler/JavaMethod";
+import {JavaMethod, JavaMethodSignature} from "../../assembler/JavaMethod";
 import {CompileContext} from "./CompileContext";
 import {ClassMeta} from "../meta/ClassMeta";
+import { ClassCompileContext } from "./ClassCompileContext";
+import { MethodCompileContext } from "./MethodCompileContext";
 
-export class FileCompileContext {
+export class FileScope {
     private readonly importedClasses: Map<string, string>;
     private readonly loadedClasses: Map<string, ClassMeta>;
     public readonly allClasses: JavaClass[];
+    private readonly fileName: string;
 
-    constructor() {
+    constructor(fileName: string) {
+        this.fileName = fileName;
         this.loadedClasses = new Map<string, ClassMeta>();
         this.loadedClasses.set("java/lang/Object", {
             name: "Object",
@@ -54,9 +58,8 @@ export class FileCompileContext {
         throw new Error(`Unloaded type ${name}`);
     }
 
-    public createContext(clss: JavaClass): CompileContext {
-        this.allClasses.push(clss);
-        return new CompileContext(this, clss);
+    public getFileClassName(): string {
+        const file = this.fileName.replace(".ts", "");
+        return file[0].toUpperCase() + file.slice(1);
     }
-
 }

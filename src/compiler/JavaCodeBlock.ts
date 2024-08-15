@@ -55,7 +55,7 @@ export class JavaCodeBlock {
     }
 
     public returnInstr() {
-        this.javaMethod.getCode().addInstruction([0xb1]);
+        this.javaMethod.getCode().addReturn();
     }
 
     public getstaticInstr(ofClass: string, prop: string, type: string) {

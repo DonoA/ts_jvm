@@ -28,9 +28,10 @@ export async function compileAndRun(dir: string, infile: string, infileClass: st
         Promise<JavaOutput> {
     const outfolder = `${dir}/out`;
     const projectRoot = path.resolve(`${dir}/../../`);
-    if (!fs.existsSync(outfolder)){
-        fs.mkdirSync(outfolder, { recursive: true });
+    if (fs.existsSync(outfolder)){
+        fs.rmdirSync(outfolder, { recursive: true });
     }
+    fs.mkdirSync(outfolder, { recursive: true });
     compileFile(`${dir}/resources/${infile}`, outfolder);
     return await getJavaOutput(projectRoot, outfolder, infileClass);
 

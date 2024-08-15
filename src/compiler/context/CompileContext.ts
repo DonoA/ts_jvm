@@ -1,25 +1,21 @@
 import {JavaClass} from "../../assembler/JavaClass";
-import {FileCompileContext} from "./FileCompileContext";
+import {FileScope} from "./FileScope";
 import {ClassMeta} from "../meta/ClassMeta";
+import { MethodCompileContext } from "./MethodCompileContext";
+import { JavaMethod } from "../../assembler/JavaMethod";
 
-export class CompileContext {
-    public readonly globalCtx: FileCompileContext;
-    private readonly clss: JavaClass;
+export abstract class CompileContext {
+    public readonly fileContext: FileScope;
 
-    constructor(globalCtx: FileCompileContext, clss: JavaClass) {
-        this.clss = clss;
-        this.globalCtx = globalCtx;
+    constructor(globalCtx: FileScope) {
+        this.fileContext = globalCtx;
     }
 
     public getQualifiedNameFor(name: string): string {
-        return this.globalCtx.getQualifiedNameFor(name);
+        return this.fileContext.getQualifiedNameFor(name);
     }
 
     public getClassMeta(name: string): ClassMeta {
-        return this.globalCtx.getClassMeta(name);
-    }
-
-    public getCurrentClass(): JavaClass {
-        return this.clss;
+        return this.fileContext.getClassMeta(name);
     }
 }

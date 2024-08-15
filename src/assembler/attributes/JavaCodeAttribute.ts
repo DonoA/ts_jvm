@@ -8,6 +8,7 @@ export class JavaCodeAttribute extends JavaAttribute {
     private code: uint8[];
     private exceptionTable: any[];
     private attributes: JavaAttribute[];
+    private hasReturn: boolean;
 
     constructor() {
         super();
@@ -16,6 +17,7 @@ export class JavaCodeAttribute extends JavaAttribute {
         this.code = [];
         this.exceptionTable = [];
         this.attributes = [];
+        this.hasReturn = false;
     }
 
     public setStackSize(count: uint8) {
@@ -30,8 +32,18 @@ export class JavaCodeAttribute extends JavaAttribute {
         this.code = this.code.concat(bytes);
     }
 
+    public addReturn() {
+        this.addInstruction([0xb1]);
+        this.hasReturn = true;
+    }
+
     public toBytes(constantPool: ConstantPool): uint8[] {
         const nameIdx = constantPool.addUTF8("Code");
+
+        if (!this.hasReturn) {
+            // A return is required
+            this.addReturn();
+        }
 
         const data = toBytes(this.maxStack, 2)
             .concat(toBytes(this.maxLocals, 2))

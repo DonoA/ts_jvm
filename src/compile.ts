@@ -1,10 +1,11 @@
 import fs from "fs";
+import path from "path";
 import {parse} from "@typescript-eslint/typescript-estree";
 import {assemble} from "./assembler/assembler";
 import {compile} from "./compiler/compiler";
 
 export function compileFile(infile: string, outfolder: string) {
-
+    const fileName = path.basename(infile);
     const code = fs.readFileSync(infile, "utf-8");
 
     try {
@@ -12,7 +13,7 @@ export function compileFile(infile: string, outfolder: string) {
 
         fs.writeFileSync(`${outfolder}/ast.json`, JSON.stringify(ast));
 
-        const classes = compile(ast);
+        const classes = compile(ast, fileName);
         classes.forEach((clss) => {
             assemble(outfolder, clss);
         })

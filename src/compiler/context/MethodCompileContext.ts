@@ -2,18 +2,24 @@ import {CompileContext} from "./CompileContext";
 import {JavaMethod} from "../../assembler/JavaMethod";
 import {Lazy} from "../../util/Lazy";
 import {JavaCodeBlock} from "../JavaCodeBlock";
-import {FileCompileContext} from "./FileCompileContext";
+import {FileScope} from "./FileScope";
 import {JavaClass} from "../../assembler/JavaClass";
+import { ClassCompileContext } from "./ClassCompileContext";
 
-export class MethodCompileContext extends CompileContext {
+export class MethodCompileContext extends ClassCompileContext {
     private readonly method: JavaMethod;
     private code: Lazy<JavaCodeBlock>;
 
-    constructor(globalCtx: FileCompileContext, clss: JavaClass, method: JavaMethod) {
+    constructor(globalCtx: FileScope, clss: JavaClass, method: JavaMethod) {
         super(globalCtx, clss);
         this.method = method;
         this.code = new Lazy(() => new JavaCodeBlock(this.method,
             clss.constantPool));
+    }
+
+    public static createMethodContext(compileContext: ClassCompileContext, method: JavaMethod): MethodCompileContext {
+        compileContext.clss.addMethod(method);
+        return new MethodCompileContext(compileContext.fileContext, compileContext.clss, method);
     }
 
     public getCode(): JavaCodeBlock {
