@@ -1,11 +1,18 @@
-class Console {
-    public static void log(String arg) {
-        System.out.println(arg);
+class HelloWorldClass {
+    public String testData;
+    
+    public HelloWorldClass() {
+        testData = "Hello world!";
+    }
+
+    public void printData() {
+        System.out.println(testData);
     }
 }
 
 public class Main {
     public static void main(String[] args) {
-        Console.log("Hello world!");
+        HelloWorldClass helloWorld = new HelloWorldClass();
+        helloWorld.printData();
     }
 }

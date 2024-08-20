@@ -1,7 +1,8 @@
 import {concatToBytes, toBytes, uint16, uint32, uint8} from "./utils";
 import {ConstantPool} from "./ConstantPool";
-import {JavaMethod} from "./JavaMethod";
+import {JavaMethod, JavaMethodSignature} from "./JavaMethod";
 import {JavaAttribute} from "./attributes/JavaAttribute";
+import { JavaType } from "./JavaType";
 
 const JAVA_MAGIC = 0xcafebabe;
 
@@ -51,14 +52,25 @@ export class JavaClass {
         this.attributes = [];
     }
 
-    public addMethod(method: JavaMethod) {
+    public addMethod(accessFlags: uint16, name: string, signature: JavaMethodSignature): JavaMethod {
+        const method = new JavaMethod(this, accessFlags, name, signature);
         this.methods.push(method);
+        return method;
+    }
+
+    public addConstructor(accessFlags: uint16, signature: JavaMethodSignature): JavaMethod {
+        if (signature.returns !== JavaType.VOID) {
+            throw new Error("Constructor must return void");
+        }
+        const method = new JavaMethod(this, accessFlags, "<init>", signature);
+        this.methods.push(method);
+        return method;
     }
 
     toBytes(): uint8[] {
         const methods = this.methods.reduce<uint8[]>(
             (byteArray, val): uint8[] => {
-            return byteArray.concat(val.toBytes(this.constantPool));
+            return byteArray.concat(val.toBytes());
         }, []);
 
         return toBytes(this.magic, 4)

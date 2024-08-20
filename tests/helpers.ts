@@ -2,6 +2,8 @@ import { exec } from "child_process";
 import fs from "fs";
 import path from "path";
 import {compileFile} from "../src/compile";
+import { JavaClass } from "../src/assembler/JavaClass";
+import { assemble } from "../src/assembler/assembler";
 
 export interface JavaOutput {
     output: string;
@@ -10,6 +12,7 @@ export interface JavaOutput {
 
 export function getJavaOutput(rootDir: string, workingDir: string, className: string): Promise<JavaOutput> {
     return new Promise<JavaOutput>((res, rej) => {
+        console.log(`Running java -cp TsJvm-1.0-SNAPSHOT.jar:${workingDir} ${className}`);
         exec(`/usr/bin/java -cp TsJvm-1.0-SNAPSHOT.jar:${workingDir} ${className}`, {
             cwd: rootDir
         }, (error, stdout, stderr) => {
@@ -27,7 +30,7 @@ export function getJavaOutput(rootDir: string, workingDir: string, className: st
 export async function compileAndRun(dir: string, infile: string, infileClass: string):
         Promise<JavaOutput> {
     const outfolder = `${dir}/out`;
-    const projectRoot = path.resolve(`${dir}/../../`);
+    const projectRoot = path.resolve(`${dir}/../../../`);
     if (fs.existsSync(outfolder)){
         fs.rmdirSync(outfolder, { recursive: true });
     }
@@ -35,4 +38,19 @@ export async function compileAndRun(dir: string, infile: string, infileClass: st
     compileFile(`${dir}/resources/${infile}`, outfolder);
     return await getJavaOutput(projectRoot, outfolder, infileClass);
 
+}
+
+export async function assembleAndRun(dir: string, mainClass: JavaClass, extraClasses: JavaClass[] = []):
+        Promise<JavaOutput> {
+    const outfolder = `${dir}/out`;
+    const projectRoot = path.resolve(`${dir}/../../`);
+    if (fs.existsSync(outfolder)){
+        fs.rmdirSync(outfolder, { recursive: true });
+    }
+    fs.mkdirSync(outfolder, { recursive: true });
+    extraClasses.forEach((clss) => {
+        assemble(outfolder, clss);
+    });
+    assemble(outfolder, mainClass);
+    return await getJavaOutput(projectRoot, outfolder, mainClass.className);
 }

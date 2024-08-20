@@ -19,11 +19,10 @@ export class ClassCompileContext extends CompileContext {
     }
 
     public static createMainMethod(globalCtx: FileScope): MethodCompileContext {
-        const mainClass = new JavaClass(JavaClass.ACCESS.PUBLIC, `${globalCtx.getFileClassName()}Main`, "java/lang/Object");
+        const mainClass = new JavaClass(JavaClass.ACCESS.PUBLIC, `${globalCtx.getFileClassName()}Main`, JavaType.OBJECT.name);
 
         const signature = new JavaMethodSignature([JavaType.STRING_ARR], JavaType.VOID);
-        const mainMethod = new JavaMethod(JavaMethod.ACCESS.PUBLIC, 'main', signature);
-        mainClass.addMethod(mainMethod);
+        const mainMethod = mainClass.addMethod(JavaMethod.ACCESS.PUBLIC | JavaMethod.ACCESS.STATIC, 'main', signature);
 
         globalCtx.allClasses.push(mainClass);
         return new MethodCompileContext(globalCtx, mainClass, mainMethod);

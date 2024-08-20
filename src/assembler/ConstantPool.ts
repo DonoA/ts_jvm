@@ -5,7 +5,7 @@ export interface ConstantPoolInfo {
     data: uint8[];
 }
 
-export class ConstantPool implements ToBytes<void> {
+export class ConstantPool implements ToBytes {
     private pool: ConstantPoolInfo[];
 
     constructor() {

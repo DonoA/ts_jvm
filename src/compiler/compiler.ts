@@ -9,6 +9,8 @@ import {
     ExpressionStatement,
     FunctionExpression,
     Identifier,
+    TSTypeAnnotation,
+    PropertyDefinition,
     Literal,
     MemberExpression,
     MethodDefinitionComputedName,
@@ -25,14 +27,12 @@ import {MethodCompileContext} from "./context/MethodCompileContext";
 import {PartialRecord} from "../util/PartialRecord";
 import {assertNodeType, NodeWithType} from "./AssertNodeType";
 import { ClassCompileContext } from "./context/ClassCompileContext";
-
-
+// import { PropertyDefinition, TSTypeAnnotation } from "./ast-extra/ast-spec";
 
 type NodeHandler = (node: any, context: CompileContext) => void;
 type NodeEvaluator = (node: any, context: CompileContext) => string;
 
 class Compiler {
-
     constructor() {
     }
 
@@ -84,8 +84,7 @@ class Compiler {
         const classContext = ClassCompileContext.assertType(context);
 
         const signature = this.extractSignature(namedNode.value, context);
-        const method = new JavaMethod(JavaMethod.ACCESS.PUBLIC, name, signature)
-        const methodContext = MethodCompileContext.createMethodContext(classContext, method);
+        const methodContext = MethodCompileContext.createMethodContext(classContext, JavaMethod.ACCESS.PUBLIC, name, signature);
 
         this.handle(namedNode.value, methodContext);
     }
@@ -105,6 +104,22 @@ class Compiler {
         }
 
         return new JavaMethodSignature(params, returns);
+    }
+
+    public handlePropertyDef(node: NodeWithType, context: CompileContext) {
+        const propertyNode: PropertyDefinition = assertNodeType(node,
+            AST_NODE_TYPES.PropertyDefinition);
+        const name = this.evaluate(propertyNode.key, context);
+        const classContext = ClassCompileContext.assertType(context);
+
+        const type = this.extractTypeFromHint(propertyNode.typeAnnotation, context);
+    }
+
+    private extractTypeFromHint(node: TSTypeAnnotation | undefined, context: CompileContext): JavaType {
+        if (node === undefined) {
+            return JavaType.OBJECT;
+        }
+        return TypeCompiler.compile(node.typeAnnotation, context);
     }
 
     public handleFunctionExpr(node: NodeWithType, context: CompileContext) {
@@ -132,11 +147,9 @@ class Compiler {
 
         const memberExpr = call.callee as MemberExpression;
 
-        // // Load function ref
+        // Load function ref
         const obj = this.evaluate(memberExpr.object, methodContext);
         const qualifiedObjClass = methodContext.getQualifiedNameFor(obj);
-        // const classMeta = methodContext.getClassMeta(qualifiedObjClass);
-        // const field = this.handleMemberFieldExpr(memberExpr, methodContext);
 
         // Load params
         call.arguments.forEach((arg) => {
@@ -148,23 +161,22 @@ class Compiler {
         const methodMeta = methodContext.getClassMeta(qualifiedObjClass).methods[propName];
         methodContext.getCode().invokestaticInstr(qualifiedObjClass, propName,
             methodMeta.sig);
-        // methodContext.getCode().invokevirtualInstr(qualifiedObjClass, propName,
-        //     methodMeta.sig);
+    }
+
+    public handleMemberExpr(node: NodeWithType, context: CompileContext) {
 
     }
 
-    private handleMemberFieldExpr(node: MemberExpression, methodContext: MethodCompileContext): FieldMeta {
-        const obj = this.evaluate(node.object, methodContext);
-        const prop = this.evaluate(node.property as Identifier, methodContext);
+    public handleNewExpr(node: NodeWithType, context: CompileContext) {
 
-        const qualifiedObjClass = methodContext.getQualifiedNameFor(obj);
-        const classMeta = methodContext.getClassMeta(qualifiedObjClass);
-        const propMeta = classMeta.fields[prop];
-        const propType = JavaType.join(propMeta.classes);
-        methodContext.getCode().getstaticInstr(classMeta.qualifiedName.name,
-            prop, propType);
+    }
 
-        return propMeta;
+    public handleAssignmentExpr(node: NodeWithType, context: CompileContext) {
+
+    }
+
+    public handleVarDecl(node: NodeWithType, context: CompileContext) {
+
     }
 
     public handleLiteral(node: NodeWithType, context: CompileContext) {
@@ -180,12 +192,19 @@ class Compiler {
         ClassDeclaration: this.handleClassDef.bind(this),
         ClassBody: this.handleClassBody.bind(this),
         MethodDefinition: this.handleMethodDef.bind(this),
+        PropertyDefinition: this.handlePropertyDef.bind(this),
         FunctionExpression: this.handleFunctionExpr.bind(this),
         BlockStatement: this.handleBlock.bind(this),
+
         ExpressionStatement: this.handleExpr.bind(this),
         CallExpression: this.handleCallExpr.bind(this),
-        // "MemberExpression": this.handleMemberExpr.bind(this),
+        NewExpression: this.handleNewExpr.bind(this),
+        AssignmentExpression: this.handleAssignmentExpr.bind(this),
+        VariableDeclaration: this.handleVarDecl.bind(this),
+        MemberExpression: this.handleMemberExpr.bind(this),
+
         Literal: this.handleLiteral.bind(this),
+
     }
 
     public handle(node: BaseNode, context: CompileContext) {
@@ -200,7 +219,7 @@ class Compiler {
         Identifier: this.evalIdent.bind(this),
     }
 
-    public evaluate(node: Expression, context: CompileContext): string {
+    public evaluate(node: BaseNode, context: CompileContext): string {
         const handler = this.evaluatorMap[node.type];
         if (handler === undefined) {
             throw new Error(`No evaluator for ${node.type}`)

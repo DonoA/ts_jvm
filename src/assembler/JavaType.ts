@@ -1,6 +1,8 @@
 export class JavaType {
     static readonly VOID: JavaType = JavaType.forPrimitive("Void");
+    static readonly STRING: JavaType = JavaType.forClass("java/lang/String");
     static readonly STRING_ARR: JavaType = JavaType.forClass("java/lang/String", 1);
+    static readonly OBJECT: JavaType = JavaType.forClass("java/lang/Object");
 
     readonly name: string;
     private readonly primitive: boolean;

@@ -10,7 +10,9 @@ export class JavaCodeAttribute extends JavaAttribute {
     private attributes: JavaAttribute[];
     private hasReturn: boolean;
 
-    constructor() {
+    private readonly constantPool: ConstantPool;
+
+    constructor(constantPool: ConstantPool) {
         super();
         this.maxStack = 0;
         this.maxLocals = 0;
@@ -18,6 +20,8 @@ export class JavaCodeAttribute extends JavaAttribute {
         this.exceptionTable = [];
         this.attributes = [];
         this.hasReturn = false;
+
+        this.constantPool = constantPool;
     }
 
     public setStackSize(count: uint8) {
@@ -37,8 +41,8 @@ export class JavaCodeAttribute extends JavaAttribute {
         this.hasReturn = true;
     }
 
-    public toBytes(constantPool: ConstantPool): uint8[] {
-        const nameIdx = constantPool.addUTF8("Code");
+    public toBytes(): uint8[] {
+        const nameIdx = this.constantPool.addUTF8("Code");
 
         if (!this.hasReturn) {
             // A return is required
@@ -51,7 +55,7 @@ export class JavaCodeAttribute extends JavaAttribute {
             .concat(this.code)
             .concat(toBytes(this.exceptionTable.length, 2))
             .concat(toBytes(this.attributes.length, 2))
-            .concat(concatToBytes(this.attributes, constantPool));
+            .concat(concatToBytes(this.attributes));
 
         return toBytes(nameIdx, 2)
             .concat(toBytes(data.length, 4))

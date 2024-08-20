@@ -1,10 +1,7 @@
 import {JavaClass} from "../../assembler/JavaClass";
 import {JavaType} from "../../assembler/JavaType";
-import {JavaMethod, JavaMethodSignature} from "../../assembler/JavaMethod";
-import {CompileContext} from "./CompileContext";
+import {JavaMethodSignature} from "../../assembler/JavaMethod";
 import {ClassMeta} from "../meta/ClassMeta";
-import { ClassCompileContext } from "./ClassCompileContext";
-import { MethodCompileContext } from "./MethodCompileContext";
 
 export class FileScope {
     private readonly importedClasses: Map<string, string>;
@@ -15,9 +12,9 @@ export class FileScope {
     constructor(fileName: string) {
         this.fileName = fileName;
         this.loadedClasses = new Map<string, ClassMeta>();
-        this.loadedClasses.set("java/lang/Object", {
+        this.loadedClasses.set(JavaType.OBJECT.name, {
             name: "Object",
-            qualifiedName: JavaType.forClass("java/lang/Object"),
+            qualifiedName: JavaType.OBJECT,
             fields: {},
             methods: {}
         });
@@ -29,14 +26,14 @@ export class FileScope {
                 "log": {
                     name: "log",
                     sig: new JavaMethodSignature([
-                        JavaType.forClass("java/lang/String"),
+                        JavaType.STRING,
                     ], JavaType.VOID),
                 }
             },
         });
 
         this.importedClasses = new Map<string, string>();
-        this.importedClasses.set("Object", "java/lang/Object");
+        this.importedClasses.set("Object", JavaType.OBJECT.name);
         this.importedClasses.set("console", "me/doallen/tsjvm/Console");
 
         this.allClasses = [];

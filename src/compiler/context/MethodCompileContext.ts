@@ -1,29 +1,26 @@
 import {CompileContext} from "./CompileContext";
-import {JavaMethod} from "../../assembler/JavaMethod";
-import {Lazy} from "../../util/Lazy";
-import {JavaCodeBlock} from "../JavaCodeBlock";
+import {JavaMethod, JavaMethodSignature} from "../../assembler/JavaMethod";
+import {JavaCodeBlock} from "../../assembler/JavaCodeBlock";
 import {FileScope} from "./FileScope";
 import {JavaClass} from "../../assembler/JavaClass";
 import { ClassCompileContext } from "./ClassCompileContext";
+import { uint16 } from "../../assembler/utils";
 
 export class MethodCompileContext extends ClassCompileContext {
     private readonly method: JavaMethod;
-    private code: Lazy<JavaCodeBlock>;
 
     constructor(globalCtx: FileScope, clss: JavaClass, method: JavaMethod) {
         super(globalCtx, clss);
         this.method = method;
-        this.code = new Lazy(() => new JavaCodeBlock(this.method,
-            clss.constantPool));
     }
 
-    public static createMethodContext(compileContext: ClassCompileContext, method: JavaMethod): MethodCompileContext {
-        compileContext.clss.addMethod(method);
+    public static createMethodContext(compileContext: ClassCompileContext, accessFlags: uint16, name: string, signature: JavaMethodSignature): MethodCompileContext {
+        const method = compileContext.clss.addMethod(accessFlags, name, signature);
         return new MethodCompileContext(compileContext.fileContext, compileContext.clss, method);
     }
 
     public getCode(): JavaCodeBlock {
-        return this.code.get();
+        return this.method.code;
     }
 
     public static assertType(context: CompileContext): MethodCompileContext {
