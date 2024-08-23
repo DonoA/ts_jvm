@@ -4,21 +4,30 @@ import {JavaClass} from "./JavaClass";
 import {JavaType} from "./JavaType";
 import { JavaCodeBlock } from "./JavaCodeBlock";
 
+export interface JavaParameter {
+    name: string;
+    type: JavaType;
+}
+
 export class JavaMethodSignature {
     static EMPTY = new JavaMethodSignature([], JavaType.VOID);
-    static MAIN = new JavaMethodSignature([JavaType.STRING_ARR], JavaType.VOID);
+    static MAIN = new JavaMethodSignature([{name: "args", type: JavaType.STRING_ARR}], JavaType.VOID);
 
-    readonly args: JavaType[];
+    readonly args: JavaParameter[];
     readonly returns: JavaType;
 
-
-    constructor(args: JavaType[], returns: JavaType) {
+    constructor(args: JavaParameter[], returns: JavaType) {
         this.args = args;
         this.returns = returns;
     }
 
+    public static fromTypes(args: JavaType[], returns: JavaType): JavaMethodSignature {
+        return new JavaMethodSignature(args.map((arg, i) => ({name: `arg${i}`, type: arg})), returns);
+    }
+
     public getTypeString(): string {
-        return `(${JavaType.join(this.args)})${this.returns.toTypeRef()}`;
+        const argString = this.args.map((arg) => arg.type.toTypeRefSemi()).join("");
+        return `(${argString})${this.returns.toTypeRef()}`;
     }
 }
 
@@ -28,12 +37,18 @@ export class JavaMethod implements ToBytes{
         STATIC: 0x0008,
     }
 
+    // u2             access_flags;
     readonly accessFlags: uint16;
+    // u2             name_index;
     readonly name: string;
+    // u2             descriptor_index;
     readonly signature: JavaMethodSignature;
-    readonly clss: JavaClass;
 
+    // u2             attributes_count;
+    // attribute_info attributes[attributes_count];
     readonly attributes: JavaAttribute[];
+
+    readonly clss: JavaClass;
     readonly code: JavaCodeBlock;
 
     constructor(clss: JavaClass, accessFlags: uint16, name: string, signature: JavaMethodSignature) {

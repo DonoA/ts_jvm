@@ -25,7 +25,7 @@ export class FileScope {
             methods: {
                 "log": {
                     name: "log",
-                    sig: new JavaMethodSignature([
+                    sig: JavaMethodSignature.fromTypes([
                         JavaType.STRING,
                     ], JavaType.VOID),
                 }

@@ -3,6 +3,7 @@ import {ConstantPool} from "./ConstantPool";
 import {JavaMethod, JavaMethodSignature} from "./JavaMethod";
 import {JavaAttribute} from "./attributes/JavaAttribute";
 import { JavaType } from "./JavaType";
+import { JavaField } from "./JavaField";
 
 const JAVA_MAGIC = 0xcafebabe;
 
@@ -14,6 +15,8 @@ export class JavaClass {
     }
 
     readonly className: string;
+    readonly fieldsByName: Map<string, JavaField> = new Map();
+    readonly methodsByName: Map<string, JavaMethod> = new Map();
 
     readonly magic: uint32 = JAVA_MAGIC;
     readonly minorVersion: uint16;
@@ -27,7 +30,7 @@ export class JavaClass {
     readonly interfaces: any[];
     // u2             fields_count;
     // field_info     fields[fields_count];
-    readonly fields: any[];
+    readonly fields: JavaField[];
     // u2             methods_count;
     // method_info    methods[methods_count];
     readonly methods: JavaMethod[];
@@ -52,9 +55,17 @@ export class JavaClass {
         this.attributes = [];
     }
 
+    public addField(accessFlags: uint16, name: string, type: JavaType): JavaField {
+        const field = new JavaField(this, accessFlags, name, type);
+        this.fields.push(field);
+        this.fieldsByName.set(name, field);
+        return field;
+    }
+
     public addMethod(accessFlags: uint16, name: string, signature: JavaMethodSignature): JavaMethod {
         const method = new JavaMethod(this, accessFlags, name, signature);
         this.methods.push(method);
+        this.methodsByName.set(name, method);
         return method;
     }
 
@@ -64,14 +75,17 @@ export class JavaClass {
         }
         const method = new JavaMethod(this, accessFlags, "<init>", signature);
         this.methods.push(method);
+        this.methodsByName.set("<init>", method);
         return method;
     }
 
+    public asType(): JavaType {
+        return JavaType.forClass(this.className);   
+    }
+
     toBytes(): uint8[] {
-        const methods = this.methods.reduce<uint8[]>(
-            (byteArray, val): uint8[] => {
-            return byteArray.concat(val.toBytes());
-        }, []);
+        const methods = concatToBytes(this.methods);
+        const fields = concatToBytes(this.fields);
 
         return toBytes(this.magic, 4)
             .concat(toBytes(this.minorVersion, 2))
@@ -82,6 +96,7 @@ export class JavaClass {
             .concat(toBytes(this.superClass, 2))
             .concat(toBytes(this.interfaces.length, 2))
             .concat(toBytes(this.fields.length, 2))
+            .concat(fields)
             .concat(toBytes(this.methods.length, 2))
             .concat(methods)
             .concat(toBytes(this.attributes.length, 2));

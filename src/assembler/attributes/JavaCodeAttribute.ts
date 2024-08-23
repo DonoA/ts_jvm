@@ -29,7 +29,7 @@ export class JavaCodeAttribute extends JavaAttribute {
     }
 
     public addLocal(count?: uint8) {
-        this.maxLocals = (count ?? 1);
+        this.maxLocals += (count ?? 1);
     }
 
     public addInstruction(bytes: uint8[]) {

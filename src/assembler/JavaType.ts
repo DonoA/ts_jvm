@@ -1,3 +1,6 @@
+export type JavaQualifiedClassName = string;
+export type JavaSimpleClassName = string;
+
 export class JavaType {
     static readonly VOID: JavaType = JavaType.forPrimitive("Void");
     static readonly STRING: JavaType = JavaType.forClass("java/lang/String");
@@ -30,6 +33,14 @@ export class JavaType {
             return arrayPrefix + this.name[0];
         } else {
             return arrayPrefix + "L" + this.name;
+        }
+    }
+
+    public toTypeRefSemi(): string {
+        if (this.primitive) {
+            return this.toTypeRef();
+        } else {
+            return this.toTypeRef() + ";";
         }
     }
 

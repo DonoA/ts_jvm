@@ -1,15 +1,24 @@
 import { JavaCodeAttribute } from "./attributes/JavaCodeAttribute";
 import {ConstantPool} from "./ConstantPool";
+import { JavaField } from "./JavaField";
 import {JavaMethod, JavaMethodSignature} from "./JavaMethod";
+import { JavaType } from "./JavaType";
 import {toBytes} from "./utils";
+
+interface JavaLocal {
+    name: string;
+    localIndex: number;
+    type: JavaType;
+}
 
 export class JavaCodeBlock {
     private readonly javaMethod: JavaMethod;
     private readonly constantPool: ConstantPool;
+    private readonly localByName: Map<string, JavaLocal>;
+    private locals: JavaLocal[];
 
     private maxStack: number;
     private currentStack: number;
-    private localCount: number;
     private codeBytes: JavaCodeAttribute;
 
     constructor(javaMethod: JavaMethod, constantPool: ConstantPool) {
@@ -19,11 +28,15 @@ export class JavaCodeBlock {
         this.maxStack = this.currentStack = 0;
         this.codeBytes = new JavaCodeAttribute(constantPool);
 
-        this.localCount = 0;
-        this.addLocal(javaMethod.signature.args.length);
+        this.localByName = new Map();
+        this.locals = [];
+        // THIS is always the first local
         if ((javaMethod.accessFlags & JavaMethod.ACCESS.STATIC) === 0) {
-            this.addLocal(1);
+            this.addLocal("this", javaMethod.clss.asType());
         }
+        javaMethod.signature.args.forEach((arg) => {
+            this.addLocal(arg.name, arg.type);
+        });
     }
 
     private addStackSize(count: number) {
@@ -36,9 +49,11 @@ export class JavaCodeBlock {
         this.codeBytes.setStackSize(this.maxStack);
     }
 
-    private addLocal(count: number) {
-        this.codeBytes.addLocal(count);
-        this.localCount += 1;
+    public addLocal(name: string, type: JavaType) {
+        this.codeBytes.addLocal();
+        const newLocal = {name, localIndex: this.locals.length, type};
+        this.locals.push(newLocal);
+        this.localByName.set(name, newLocal);
     }
 
     public loadconstInstr(value: string) {
@@ -90,6 +105,14 @@ export class JavaCodeBlock {
         this.addStackSize(1);
     }
 
+    public putfieldInstr(field: JavaField) {
+        const fieldRefHandle = this.constantPool
+            .addFieldRefWithName(field.clss.className, field.name, field.type.toTypeRef());
+        this.codeBytes.addInstruction([0xb5, ...toBytes(fieldRefHandle, 2)])
+
+        this.addStackSize(-2);
+    }
+
     public newInstr(className: string) {
         const classHandle = this.constantPool.addClassWithName(className);
         this.codeBytes.addInstruction([0xbb, ...toBytes(classHandle, 2)])
@@ -101,7 +124,17 @@ export class JavaCodeBlock {
         this.codeBytes.addInstruction([0x3a, ...toBytes(index, 1)])
 
         this.addStackSize(-1);
-        this.addLocal(1);
+        this.addLocal(`local${index}`, JavaType.OBJECT);
+    }
+
+    public astoreLocalInstr(name: string) {
+        const local = this.localByName.get(name);
+        if (local === undefined) {
+            throw new Error(`Local ${name} not found`);
+        }
+
+        this.codeBytes.addInstruction([0x3a, ...toBytes(local.localIndex, 1)])
+        this.addStackSize(-1);
     }
 
     public aloadInstr(index: number) {
@@ -109,6 +142,17 @@ export class JavaCodeBlock {
         
         this.addStackSize(1);
     }
+
+    public aloadLocalInstr(name: string) {
+        const local = this.localByName.get(name);
+        if (local === undefined) {
+            throw new Error(`Local ${name} not found`);
+        }
+        this.codeBytes.addInstruction([0x19, ...toBytes(local.localIndex, 1)]);
+        
+        this.addStackSize(1);
+    }
+
 
     public getCodeAttribute(): JavaCodeAttribute {
         return this.codeBytes;

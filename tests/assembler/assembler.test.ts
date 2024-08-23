@@ -3,13 +3,13 @@ import { JavaMethod, JavaMethodSignature } from "../../src/assembler/JavaMethod"
 import { JavaType } from "../../src/assembler/JavaType";
 import { assembleAndRun } from "../helpers";
 
-test.skip('Print Hello World', async () => {
+test('Print Hello World', async () => {
     const mainClass = new JavaClass(JavaClass.ACCESS.PUBLIC, "HelloWorldMain", JavaType.OBJECT.name);
     const mainMethod = mainClass.addMethod(JavaMethod.ACCESS.PUBLIC | JavaMethod.ACCESS.STATIC, "main", JavaMethodSignature.MAIN);
 
     mainMethod.code.getstaticInstr("java/lang/System", "out", "Ljava/io/PrintStream;");
     mainMethod.code.loadconstInstr("Hello World!");
-    mainMethod.code.invokevirtualInstr("java/io/PrintStream", "println", new JavaMethodSignature([JavaType.STRING], JavaType.VOID));
+    mainMethod.code.invokevirtualInstr("java/io/PrintStream", "println", JavaMethodSignature.fromTypes([JavaType.STRING], JavaType.VOID));
     mainMethod.code.returnInstr();
 
     const output = await assembleAndRun(__dirname, mainClass);
@@ -29,7 +29,7 @@ test('Call Different Class', async () => {
 
     printerMethod.code.getstaticInstr("java/lang/System", "out", "Ljava/io/PrintStream;");
     printerMethod.code.loadconstInstr("Hello World From Printer!");
-    printerMethod.code.invokevirtualInstr("java/io/PrintStream", "println", new JavaMethodSignature([JavaType.STRING], JavaType.VOID));
+    printerMethod.code.invokevirtualInstr("java/io/PrintStream", "println", JavaMethodSignature.fromTypes([JavaType.STRING], JavaType.VOID));
     printerMethod.code.returnInstr();
 
     const mainClass = new JavaClass(JavaClass.ACCESS.PUBLIC, "Main", JavaType.OBJECT.name);
@@ -45,7 +45,30 @@ test('Call Different Class', async () => {
     expect(output.returnCode).toBe(0);
 });
 
-test.skip('Define local variable', async () => {
+test('Read and assign locals', async () => {
+    const mainClass = new JavaClass(JavaClass.ACCESS.PUBLIC, "Main", JavaType.OBJECT.name);
+    const mainMethod = mainClass.addMethod(JavaMethod.ACCESS.PUBLIC | JavaMethod.ACCESS.STATIC, "main", JavaMethodSignature.MAIN);
+
+    const localName = "testVar";
+    mainMethod.code.addLocal(localName, JavaType.STRING);
+
+    mainMethod.code.loadconstInstr("Print 2");
+    mainMethod.code.astoreLocalInstr(localName);
+
+    mainMethod.code.getstaticInstr("java/lang/System", "out", "Ljava/io/PrintStream;");
+    mainMethod.code.loadconstInstr("Print 1");
+    mainMethod.code.invokevirtualInstr("java/io/PrintStream", "println", JavaMethodSignature.fromTypes([JavaType.STRING], JavaType.VOID));
+
+    mainMethod.code.getstaticInstr("java/lang/System", "out", "Ljava/io/PrintStream;");
+    mainMethod.code.aloadLocalInstr(localName);
+    mainMethod.code.invokevirtualInstr("java/io/PrintStream", "println", JavaMethodSignature.fromTypes([JavaType.STRING], JavaType.VOID));
+
+    const output = await assembleAndRun(__dirname, mainClass);
+    expect(output.output).toBe("Print 1\nPrint 2\n");
+    expect(output.returnCode).toBe(0);
+});
+
+test('Define local variable', async () => {
     const mainClass = new JavaClass(JavaClass.ACCESS.PUBLIC, "LocalVarMain", JavaType.OBJECT.name);
     const mainMethod = mainClass.addMethod(JavaMethod.ACCESS.PUBLIC | JavaMethod.ACCESS.STATIC, "main", JavaMethodSignature.MAIN);
 
@@ -53,7 +76,7 @@ test.skip('Define local variable', async () => {
     mainMethod.code.astoreInstr(0);
     mainMethod.code.getstaticInstr("java/lang/System", "out", "Ljava/io/PrintStream;");
     mainMethod.code.aloadInstr(0);
-    mainMethod.code.invokevirtualInstr("java/io/PrintStream", "println", new JavaMethodSignature([JavaType.STRING], JavaType.VOID));
+    mainMethod.code.invokevirtualInstr("java/io/PrintStream", "println", JavaMethodSignature.fromTypes([JavaType.STRING], JavaType.VOID));
     mainMethod.code.returnInstr();
 
     const output = await assembleAndRun(__dirname, mainClass);
