@@ -1,3 +1,4 @@
+import { JavaCompiledClassName, JavaQualifiedClassName } from "./JavaType";
 import {ToBytes, uint16, uint8, toBytes} from "./utils";
 
 export interface ConstantPoolInfo {
@@ -12,7 +13,7 @@ export class ConstantPool implements ToBytes {
         this.pool = [];
     }
 
-    public addClassWithName(name: string): uint16 {
+    public addClassWithName(name: JavaQualifiedClassName): uint16 {
         const nameHandle = this.addUTF8(name);
         return this.addClass(nameHandle);
     }
@@ -66,7 +67,7 @@ export class ConstantPool implements ToBytes {
         return this.pool.length;
     }
 
-    public addFieldRefWithName(className: string, fieldName: string, fieldType: string): uint16 {
+    public addFieldRefWithName(className: JavaQualifiedClassName, fieldName: string, fieldType: JavaCompiledClassName): uint16 {
         const classHandle = this.addClassWithName(className);
         const fieldHandle = this.addUTF8(fieldName);
         const fieldTypeHandle = this.addUTF8(fieldType);

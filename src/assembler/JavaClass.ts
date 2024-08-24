@@ -2,7 +2,7 @@ import {concatToBytes, toBytes, uint16, uint32, uint8} from "./utils";
 import {ConstantPool} from "./ConstantPool";
 import {JavaMethod, JavaMethodSignature} from "./JavaMethod";
 import {JavaAttribute} from "./attributes/JavaAttribute";
-import { JavaType } from "./JavaType";
+import { JavaQualifiedClassName, JavaType } from "./JavaType";
 import { JavaField } from "./JavaField";
 
 const JAVA_MAGIC = 0xcafebabe;
@@ -17,6 +17,7 @@ export class JavaClass {
     readonly className: string;
     readonly fieldsByName: Map<string, JavaField> = new Map();
     readonly methodsByName: Map<string, JavaMethod> = new Map();
+    readonly superClassName: JavaQualifiedClassName;
 
     readonly magic: uint32 = JAVA_MAGIC;
     readonly minorVersion: uint16;
@@ -38,7 +39,7 @@ export class JavaClass {
     // attribute_info attributes[attributes_count];
     readonly attributes: JavaAttribute[];
 
-    constructor(access_flags: uint16, className: string, superClass: string) {
+    constructor(access_flags: uint16, className: JavaQualifiedClassName, superClass: JavaQualifiedClassName) {
         this.className = className;
 
         this.minorVersion = JavaClass.minorVersion;
@@ -48,6 +49,7 @@ export class JavaClass {
         this.constantPool = new ConstantPool();
         this.thisClass = this.constantPool.addClassWithName(className);
         this.superClass = this.constantPool.addClassWithName(superClass);
+        this.superClassName = superClass;
 
         this.interfaces = [];
         this.fields = [];

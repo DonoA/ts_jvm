@@ -2,7 +2,7 @@ class HelloWorldClass {
     testData: string;
     
     constructor() {
-        this.testData = "Hello World!";
+        this.testData = "Hello World Class!";
     }
 
     printData() {

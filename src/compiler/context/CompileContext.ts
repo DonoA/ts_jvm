@@ -1,8 +1,6 @@
-import {JavaClass} from "../../assembler/JavaClass";
 import {FileScope} from "./FileScope";
 import {ClassMeta} from "../meta/ClassMeta";
-import { MethodCompileContext } from "./MethodCompileContext";
-import { JavaMethod } from "../../assembler/JavaMethod";
+import { JavaQualifiedClassName, JavaSimpleClassName } from "../../assembler/JavaType";
 
 export abstract class CompileContext {
     public readonly fileContext: FileScope;
@@ -11,11 +9,11 @@ export abstract class CompileContext {
         this.fileContext = globalCtx;
     }
 
-    public getQualifiedNameFor(name: string): string {
+    public getQualifiedNameFor(name: JavaSimpleClassName): JavaQualifiedClassName {
         return this.fileContext.getQualifiedNameFor(name);
     }
 
-    public getClassMeta(name: string): ClassMeta {
+    public getClassMeta(name: JavaQualifiedClassName): ClassMeta {
         return this.fileContext.getClassMeta(name);
     }
 }

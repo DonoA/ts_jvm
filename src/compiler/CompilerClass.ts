@@ -22,7 +22,7 @@ import {
 } from "@typescript-eslint/types/dist/generated/ast-spec";
 import {JavaClass} from "../assembler/JavaClass";
 import {JavaMethod, JavaMethodSignature} from "../assembler/JavaMethod";
-import {JavaType} from "../assembler/JavaType";
+import {JavaSimpleClassName, JavaType} from "../assembler/JavaType";
 import {TypeCompiler} from "./TypeCompiler";
 import {CompileContext} from "./context/CompileContext";
 import {FileScope} from "./context/FileScope";
@@ -69,6 +69,8 @@ class Compiler {
 
         this.handle(classDeclaration.body, newContext);
 
+        context.fileContext.addClass(clss); // Add class to file scope, must be done after methods/fields are added
+
         return CompileResult.empty();
     }
 
@@ -88,14 +90,57 @@ class Compiler {
     public handleMethodDef(node: NodeWithType, context: CompileContext): CompileResult {
         const namedNode: MethodDefinitionComputedName = assertNodeType(node,
             AST_NODE_TYPES.MethodDefinition);
-        const name = this.handle(namedNode.key, context).getValue();
+        let name = this.handle(namedNode.key, context).getValue();
+        if (name === "constructor") {
+            name = "<init>";
+        }
         const classContext = ClassCompileContext.assertType(context);
 
         const signature = this.extractSignature(namedNode.value, context);
         const methodContext = MethodCompileContext.createMethodContext(classContext, JavaMethod.ACCESS.PUBLIC, name, signature);
 
+        // Java requires that the first method called is "super" if the constructor does not call it
+        if (name === "<init>" && !this.callsSuper(namedNode.value)) {
+            methodContext.getCode().aloadInstr(0);
+            methodContext.getCode().invokespecialInstr(classContext.clss.superClassName, "<init>", JavaMethodSignature.fromTypes([], JavaType.VOID));
+        }
+
         this.handle(namedNode.value, methodContext);
         return CompileResult.empty();
+    }
+
+    // Check if the constructor calls super
+    private callsSuper(node: FunctionExpression | TSEmptyBodyFunctionExpression): boolean {
+        if (node.type !== AST_NODE_TYPES.FunctionExpression) {
+            return false;
+        }
+
+        const body = node.body;
+        if (body.body.length === 0) {
+            return false;
+        }
+
+        const firstStmt = body.body[0];
+        if (firstStmt.type !== AST_NODE_TYPES.ExpressionStatement) {
+            return false;
+        }
+
+        const expr = firstStmt.expression;
+        if (expr.type !== AST_NODE_TYPES.CallExpression) {
+            return false;
+        }
+
+        const callee = expr.callee;
+        if (callee.type !== AST_NODE_TYPES.MemberExpression) {
+            return false;
+        }
+
+        const obj = callee.object;
+        if (obj.type !== AST_NODE_TYPES.Super) {
+            return false;
+        }
+
+        return true;
     }
 
     private extractSignature(node: FunctionExpression | TSEmptyBodyFunctionExpression,
@@ -159,31 +204,82 @@ class Compiler {
     public handleCallExpr(node: NodeWithType, context: CompileContext): CompileResult {
         const call: CallExpression = assertNodeType(node, AST_NODE_TYPES.CallExpression);
         const methodContext = MethodCompileContext.assertType(context);
-
-        const memberExpr = call.callee as MemberExpression;
+        const memberExpr: MemberExpression = assertNodeType(call.callee, AST_NODE_TYPES.MemberExpression);
 
         // Load function ref
-        const obj = this.handle(memberExpr.object, methodContext);
-        const qualifiedObjClass = methodContext.getQualifiedNameFor(obj.getValue());
+        const objIdent = this.handle(memberExpr.object, methodContext).getValue();
+
+        // Check if this is a local
+        if (methodContext.getCode().hasLocal(objIdent)) {
+            return this.compileLocalMethodCall(objIdent, call, methodContext);
+        // Check if this is a field
+        } else if (methodContext.clss.fieldsByName.has(objIdent)) { 
+            return this.compileFieldMethodCall(objIdent, call, methodContext);
+        // Check if this is a static method
+        } else {
+            return this.compileStaticMethodCall(objIdent, call, methodContext);
+        }
+    }
+
+    private compileLocalMethodCall(objIdent: string, call: CallExpression, methodContext: MethodCompileContext): CompileResult {
+        const memberExpr: MemberExpression = assertNodeType(call.callee, AST_NODE_TYPES.MemberExpression);
+        const type = methodContext.getCode().getLocalType(objIdent);
+
+        // Load object ref
+        methodContext.getCode().aloadLocalInstr(objIdent);
 
         // Load params
         call.arguments.forEach((arg) => {
             this.handle(arg, methodContext);
         });
 
-        // Invoke method
-        const propName = this.handle(memberExpr.property as Expression, context).getValue();
+        const propName = this.handle(memberExpr.property, methodContext).getValue();
+        const methodMeta = methodContext.getClassMeta(type.name).methods[propName];
+        methodContext.getCode().invokevirtualInstr(type.name, propName, methodMeta.sig);
+
+        return CompileResult.ofType(methodMeta.sig.returns);
+    }
+
+    private compileFieldMethodCall(objIdent: string, call: CallExpression, methodContext: MethodCompileContext): CompileResult {
+        const memberExpr: MemberExpression = assertNodeType(call.callee, AST_NODE_TYPES.MemberExpression);
+        const type = methodContext.clss.fieldsByName.get(objIdent)!.type;
+
+        // Load object ref from field
+        methodContext.getCode().aloadInstr(0);
+        methodContext.getCode().getfieldInstr(methodContext.clss.className, objIdent, type.toTypeRefSemi());
+
+        // Load params
+        call.arguments.forEach((arg) => {
+            this.handle(arg, methodContext);
+        });
+
+        const propName = this.handle(memberExpr.property, methodContext).getValue();
+        const methodMeta = methodContext.getClassMeta(type.name).methods[propName];
+        methodContext.getCode().invokevirtualInstr(type.name, propName, methodMeta.sig);
+
+        return CompileResult.ofType(methodMeta.sig.returns);
+    }
+
+    private compileStaticMethodCall(staticClassName: JavaSimpleClassName, call: CallExpression, methodContext: MethodCompileContext): CompileResult {
+        const memberExpr: MemberExpression = assertNodeType(call.callee, AST_NODE_TYPES.MemberExpression);
+        const qualifiedObjClass = methodContext.getQualifiedNameFor(staticClassName);
+
+        // Load params
+        call.arguments.forEach((arg) => {
+            this.handle(arg, methodContext);
+        });
+
+        const propName = this.handle(memberExpr.property, methodContext).getValue();
         const methodMeta = methodContext.getClassMeta(qualifiedObjClass).methods[propName];
         methodContext.getCode().invokestaticInstr(qualifiedObjClass, propName,
             methodMeta.sig);
 
-        return CompileResult.empty();
+        return CompileResult.ofType(methodMeta.sig.returns);
     }
 
     public handleMemberExpr(node: NodeWithType, context: CompileContext): CompileResult {
         const memberExpr: MemberExpression = assertNodeType(node, AST_NODE_TYPES.MemberExpression);
         const methodContext = MethodCompileContext.assertType(context);
-
 
         const fieldName = this.handle(memberExpr.property, methodContext).getValue();
         // Assume the object is a THIS
@@ -192,11 +288,18 @@ class Compiler {
             throw new Error(`Field ${fieldName} not found in class ${methodContext.clss.className}`);
         }
 
-        // Put THIS object ref on stack
-        methodContext.getCode().aloadInstr(0);
+        // We can't know if we are getting the value of the field here or simply setting up to assign to it
+        if (methodContext.assignmentLHS) {
+            // Put THIS object ref on stack
+            methodContext.getCode().aloadInstr(0);
+        } else {
+            // Put THIS object ref on stack
+            methodContext.getCode().aloadInstr(0);
+            // Get field value
+            methodContext.getCode().getfieldInstr(methodContext.clss.className, fieldName, field.type.toTypeRefSemi());
+        }
 
         return CompileResult.ofField(field);
-        
     }
 
     public handleNewExpr(node: NodeWithType, context: CompileContext): CompileResult {
@@ -225,7 +328,8 @@ class Compiler {
         const assignment: AssignmentExpression = assertNodeType(node, AST_NODE_TYPES.AssignmentExpression);
         const methodContext = MethodCompileContext.assertType(context);
 
-        const variable = this.handle(assignment.left, methodContext);
+        const lhsContext = MethodCompileContext.forAssignmentLHS(methodContext);
+        const variable = this.handle(assignment.left, lhsContext);
         this.handle(assignment.right, methodContext);
 
         const assignedToField = variable.getField();

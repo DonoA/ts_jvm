@@ -8,10 +8,16 @@ import { uint16 } from "../../assembler/utils";
 
 export class MethodCompileContext extends ClassCompileContext {
     private readonly method: JavaMethod;
+    public readonly assignmentLHS: boolean;
 
-    constructor(globalCtx: FileScope, clss: JavaClass, method: JavaMethod) {
+    constructor(globalCtx: FileScope, clss: JavaClass, method: JavaMethod, assignmentLHS: boolean = false) {
         super(globalCtx, clss);
         this.method = method;
+        this.assignmentLHS = assignmentLHS;
+    }
+
+    public static forAssignmentLHS(context: MethodCompileContext): MethodCompileContext {
+        return new MethodCompileContext(context.fileContext, context.clss, context.method, true);
     }
 
     public static createMethodContext(compileContext: ClassCompileContext, accessFlags: uint16, name: string, signature: JavaMethodSignature): MethodCompileContext {

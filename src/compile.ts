@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import {parse} from "@typescript-eslint/typescript-estree";
 import {assemble} from "./assembler/assembler";
-import {compile} from "./compiler/Compiler";
+import {compile} from "./compiler/CompilerClass";
 
 export function compileFile(infile: string, outfolder: string) {
     const fileName = path.basename(infile);

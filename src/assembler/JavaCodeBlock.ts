@@ -2,7 +2,7 @@ import { JavaCodeAttribute } from "./attributes/JavaCodeAttribute";
 import {ConstantPool} from "./ConstantPool";
 import { JavaField } from "./JavaField";
 import {JavaMethod, JavaMethodSignature} from "./JavaMethod";
-import { JavaType } from "./JavaType";
+import { JavaCompiledClassName, JavaQualifiedClassName, JavaType } from "./JavaType";
 import {toBytes} from "./utils";
 
 interface JavaLocal {
@@ -56,6 +56,18 @@ export class JavaCodeBlock {
         this.localByName.set(name, newLocal);
     }
 
+    public getLocalType(name: string): JavaType {
+        const local = this.localByName.get(name);
+        if (local === undefined) {
+            throw new Error(`Local ${name} not found`);
+        }
+        return local.type;
+    }
+
+    public hasLocal(name: string): boolean {
+        return this.localByName.has(name);
+    }
+
     public loadconstInstr(value: string) {
         const stringHandle = this.constantPool.addStringWithValue(value);
         this.codeBytes.addInstruction([0x12, ...toBytes(stringHandle, 1)])
@@ -69,7 +81,7 @@ export class JavaCodeBlock {
         this.addStackSize(1);
     }
 
-    public invokevirtualInstr(ofClass: string, prop: string,
+    public invokevirtualInstr(ofClass: JavaQualifiedClassName, prop: string,
                             typeSignature: JavaMethodSignature) {
         const methodRefHandle = this.constantPool.addMethodRefWithName(ofClass,
             prop, typeSignature.getTypeString());
@@ -77,7 +89,7 @@ export class JavaCodeBlock {
         this.addStackSize(-typeSignature.args.length);
     }
 
-    public invokespecialInstr(ofClass: string, prop: string,
+    public invokespecialInstr(ofClass: JavaQualifiedClassName, prop: string,
                             typeSignature: JavaMethodSignature) {
         const methodRefHandle = this.constantPool.addMethodRefWithName(ofClass,
         prop, typeSignature.getTypeString());
@@ -85,7 +97,7 @@ export class JavaCodeBlock {
         this.addStackSize(-typeSignature.args.length);
     }
 
-    public invokestaticInstr(ofClass: string, prop: string,
+    public invokestaticInstr(ofClass: JavaQualifiedClassName, prop: string,
                             typeSignature: JavaMethodSignature) {
         const methodRefHandle = this.constantPool.addMethodRefWithName(ofClass,
             prop, typeSignature.getTypeString());
@@ -97,7 +109,7 @@ export class JavaCodeBlock {
         this.codeBytes.addReturn();
     }
 
-    public getstaticInstr(ofClass: string, prop: string, type: string) {
+    public getstaticInstr(ofClass: JavaQualifiedClassName, prop: string, type: JavaCompiledClassName) {
         const fieldRefHandle = this.constantPool
             .addFieldRefWithName(ofClass, prop, type);
         this.codeBytes.addInstruction([0xb2, ...toBytes(fieldRefHandle, 2)])
@@ -105,15 +117,23 @@ export class JavaCodeBlock {
         this.addStackSize(1);
     }
 
+    public getfieldInstr(ofClass: JavaQualifiedClassName, prop: string, type: JavaCompiledClassName) {
+        const fieldRefHandle = this.constantPool
+            .addFieldRefWithName(ofClass, prop, type);
+        this.codeBytes.addInstruction([0xb4, ...toBytes(fieldRefHandle, 2)])
+
+        this.addStackSize(0);
+    }
+
     public putfieldInstr(field: JavaField) {
         const fieldRefHandle = this.constantPool
-            .addFieldRefWithName(field.clss.className, field.name, field.type.toTypeRef());
+            .addFieldRefWithName(field.clss.className, field.name, field.type.toTypeRefSemi());
         this.codeBytes.addInstruction([0xb5, ...toBytes(fieldRefHandle, 2)])
 
         this.addStackSize(-2);
     }
 
-    public newInstr(className: string) {
+    public newInstr(className: JavaQualifiedClassName) {
         const classHandle = this.constantPool.addClassWithName(className);
         this.codeBytes.addInstruction([0xbb, ...toBytes(classHandle, 2)])
 

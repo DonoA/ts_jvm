@@ -14,7 +14,6 @@ export class ClassCompileContext extends CompileContext {
     }
 
     public static createClassContext(globalCtx: FileScope, clss: JavaClass): ClassCompileContext {
-        globalCtx.allClasses.push(clss);
         return new ClassCompileContext(globalCtx, clss);
     }
 
