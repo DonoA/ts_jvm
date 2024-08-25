@@ -25,6 +25,11 @@ export class MethodCompileContext extends ClassCompileContext {
         return new MethodCompileContext(compileContext.fileContext, compileContext.clss, method);
     }
 
+    public static loadMethodContext(compileContext: ClassCompileContext, name: string): MethodCompileContext {
+        const method = compileContext.clss.getMethod(name);
+        return new MethodCompileContext(compileContext.fileContext, compileContext.clss, method);
+    }
+
     public getCode(): JavaCodeBlock {
         return this.method.code;
     }

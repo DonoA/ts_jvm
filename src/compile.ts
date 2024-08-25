@@ -2,7 +2,8 @@ import fs from "fs";
 import path from "path";
 import {parse} from "@typescript-eslint/typescript-estree";
 import {assemble} from "./assembler/assembler";
-import {compile} from "./compiler/CompilerClass";
+import {compileSource} from "./compiler/SourceCompiler";
+import {compileStructure} from "./compiler/StructureCompiler";
 
 export function compileFile(infile: string, outfolder: string) {
     const fileName = path.basename(infile);
@@ -13,7 +14,8 @@ export function compileFile(infile: string, outfolder: string) {
 
         fs.writeFileSync(`${outfolder}/ast.json`, JSON.stringify(ast, null, 2));
 
-        const classes = compile(ast, fileName);
+        const classes = compileStructure(ast, fileName);
+        compileSource(ast, classes, fileName);
         classes.forEach((clss) => {
             assemble(outfolder, clss);
         })

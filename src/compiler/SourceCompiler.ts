@@ -5,12 +5,9 @@ import {
     CallExpression,
     ClassBody,
     ClassDeclaration,
-    Expression,
     ExpressionStatement,
     FunctionExpression,
     Identifier,
-    TSTypeAnnotation,
-    PropertyDefinition,
     Literal,
     MemberExpression,
     VariableDeclaration,
@@ -21,30 +18,27 @@ import {
     AssignmentExpression
 } from "@typescript-eslint/types/dist/generated/ast-spec";
 import {JavaClass} from "../assembler/JavaClass";
-import {JavaMethod, JavaMethodSignature} from "../assembler/JavaMethod";
+import {JavaMethodSignature} from "../assembler/JavaMethod";
 import {JavaSimpleClassName, JavaType} from "../assembler/JavaType";
-import {TypeCompiler} from "./TypeCompiler";
 import {CompileContext} from "./context/CompileContext";
 import {FileScope} from "./context/FileScope";
 import {MethodCompileContext} from "./context/MethodCompileContext";
 import {PartialRecord} from "../util/PartialRecord";
 import {assertNodeType, NodeWithType} from "./AssertNodeType";
 import { ClassCompileContext } from "./context/ClassCompileContext";
-import { JavaField } from "../assembler/JavaField";
 import { CompileResult } from "./CompileResult";
 
 type NodeHandler = (node: any, context: CompileContext) => CompileResult;
 
-class Compiler {
+class SourceCompiler {
     constructor() {
     }
 
-    public compile(node: AST<any>, fileName: string): JavaClass[] {
-        const fileScope = new FileScope(fileName);
-        const context = ClassCompileContext.createMainMethod(fileScope);
+    public compileSource(node: AST<any>, classes: JavaClass[], fileName: string) {
+        const fileScope = new FileScope(fileName, classes);
+        const context = ClassCompileContext.loadMainMethod(fileScope);
         
         this.handle(node, context);
-        return fileScope.allClasses;
     }
 
     public handleProgram(node: NodeWithType, context: CompileContext): CompileResult {
@@ -60,16 +54,9 @@ class Compiler {
         const classDeclaration: ClassDeclaration = assertNodeType(node,
             AST_NODE_TYPES.ClassDeclaration)
         const name = this.handle(classDeclaration.id!, context).getValue();
-        let superClassName = classDeclaration.superClass ?
-            this.handle(classDeclaration.superClass, context).getValue() : "Object";
-        const superClass = context.getQualifiedNameFor(superClassName);
-        const clss = new JavaClass(JavaClass.ACCESS.PUBLIC, name, superClass);
+        const classContext = ClassCompileContext.loadClassContext(context.fileContext, name);
 
-        const newContext = ClassCompileContext.createClassContext(context.fileContext, clss);
-
-        this.handle(classDeclaration.body, newContext);
-
-        context.fileContext.addClass(clss); // Add class to file scope, must be done after methods/fields are added
+        this.handle(classDeclaration.body, classContext);
 
         return CompileResult.empty();
     }
@@ -95,9 +82,7 @@ class Compiler {
             name = "<init>";
         }
         const classContext = ClassCompileContext.assertType(context);
-
-        const signature = this.extractSignature(namedNode.value, context);
-        const methodContext = MethodCompileContext.createMethodContext(classContext, JavaMethod.ACCESS.PUBLIC, name, signature);
+        const methodContext = MethodCompileContext.loadMethodContext(classContext, name);
 
         // Java requires that the first method called is "super" if the constructor does not call it
         if (name === "<init>" && !this.callsSuper(namedNode.value)) {
@@ -143,40 +128,9 @@ class Compiler {
         return true;
     }
 
-    private extractSignature(node: FunctionExpression | TSEmptyBodyFunctionExpression,
-                             context: CompileContext): JavaMethodSignature {
-        const params = node.params.map((param) => {
-            const ident = assertNodeType<Identifier>(param, AST_NODE_TYPES.Identifier);
-            const type = TypeCompiler.compile(ident.typeAnnotation!, context);
-            return {name: ident.name, type};
-        });
-
-        let returns;
-        if (node.returnType) {
-            returns = TypeCompiler.compile(node.returnType, context);
-        } else {
-            returns = JavaType.VOID;
-        }
-
-        return new JavaMethodSignature(params, returns);
-    }
-
-    public handlePropertyDef(node: NodeWithType, context: CompileContext): CompileResult {
-        const propertyNode: PropertyDefinition = assertNodeType(node,
-            AST_NODE_TYPES.PropertyDefinition);
-        const name = this.handle(propertyNode.key, context).getValue();
-        const classContext = ClassCompileContext.assertType(context);
-
-        const type = this.extractTypeFromHint(propertyNode.typeAnnotation, context);
-        classContext.clss.addField(JavaField.ACCESS.PUBLIC, name, type);
+    public handleNoOp(node: NodeWithType, context: CompileContext): CompileResult {
+        // Pass
         return CompileResult.empty();
-    }
-
-    private extractTypeFromHint(node: TSTypeAnnotation | undefined, context: CompileContext): JavaType {
-        if (node === undefined) {
-            return JavaType.OBJECT;
-        }
-        return TypeCompiler.compile(node.typeAnnotation, context);
     }
 
     public handleFunctionExpr(node: NodeWithType, context: CompileContext): CompileResult {
@@ -376,7 +330,7 @@ class Compiler {
         ClassDeclaration: this.handleClassDef.bind(this),
         ClassBody: this.handleClassBody.bind(this),
         MethodDefinition: this.handleMethodDef.bind(this),
-        PropertyDefinition: this.handlePropertyDef.bind(this),
+        PropertyDefinition: this.handleNoOp.bind(this),
         FunctionExpression: this.handleFunctionExpr.bind(this),
         BlockStatement: this.handleBlock.bind(this),
 
@@ -401,7 +355,7 @@ class Compiler {
     }
 }
 
-export function compile(ast: AST<any>, fileName: string): JavaClass[] {
-    const compiler = new Compiler();
-    return compiler.compile(ast, fileName);
+export function compileSource(ast: AST<any>, classes: JavaClass[], fileName: string) {
+    const compiler = new SourceCompiler();
+    compiler.compileSource(ast, classes, fileName);
 }

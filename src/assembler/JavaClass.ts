@@ -64,10 +64,26 @@ export class JavaClass {
         return field;
     }
 
+    public getField(name: string): JavaField {
+        const field = this.fieldsByName.get(name);
+        if (!field) {
+            throw new Error(`Method ${name} not found in class ${this.className}`);
+        }
+        return field;
+    }
+
     public addMethod(accessFlags: uint16, name: string, signature: JavaMethodSignature): JavaMethod {
         const method = new JavaMethod(this, accessFlags, name, signature);
         this.methods.push(method);
         this.methodsByName.set(name, method);
+        return method;
+    }
+
+    public getMethod(name: string): JavaMethod {
+        const method = this.methodsByName.get(name);
+        if (!method) {
+            throw new Error(`Method ${name} not found in class ${this.className}`);
+        }
         return method;
     }
 

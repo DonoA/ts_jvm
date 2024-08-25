@@ -10,7 +10,7 @@ export class FileScope {
     public readonly allClasses: JavaClass[];
     private readonly fileName: string;
 
-    constructor(fileName: string) {
+    constructor(fileName: string, classes: JavaClass[] = []) {
         this.fileName = fileName;
         this.loadedClasses = new Map<string, ClassMeta>();
         this.loadedClasses.set(JavaType.OBJECT.name, {
@@ -38,6 +38,9 @@ export class FileScope {
         this.importedClasses.set("console", "me/doallen/tsjvm/Console");
 
         this.allClasses = [];
+        classes.forEach((cls) => {
+            this.addClass(cls);
+        });
     }
 
     public getQualifiedNameFor(name: JavaSimpleClassName): JavaQualifiedClassName {
@@ -61,10 +64,19 @@ export class FileScope {
         return file[0].toUpperCase() + file.slice(1);
     }
 
+    public getMainClassName(): string {
+        return this.getFileClassName() + "Main";
+    }
+
     public addClass(cls: JavaClass) {
         this.allClasses.push(cls);
         this.loadedClasses.set(cls.className, this.toClassMeta(cls));
         this.importedClasses.set(cls.className, cls.className);
+    }
+
+    public getClass(name: JavaSimpleClassName): JavaClass | undefined {
+        const qualifiedName = this.importedClasses.get(name);
+        return this.allClasses.find((cls) => cls.className === qualifiedName);
     }
 
     private toClassMeta(cls: JavaClass): ClassMeta {
