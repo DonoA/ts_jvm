@@ -1,6 +1,5 @@
 import {AST, AST_NODE_TYPES} from "@typescript-eslint/typescript-estree";
 import {
-    BaseNode,
     BlockStatement,
     CallExpression,
     ClassBody,
@@ -30,15 +29,33 @@ import { CompileResult } from "./CompileResult";
 
 type NodeHandler = (node: any, context: CompileContext) => CompileResult;
 
+export interface SourceCompileResult {
+    errorNode: NodeWithType | null;
+    error: Error | null;
+}
+
 class SourceCompiler {
+    errorNode: NodeWithType | null = null;
+
     constructor() {
     }
 
-    public compileSource(node: AST<any>, classes: JavaClass[], fileName: string) {
+    public compileSource(node: AST<any>, classes: JavaClass[], fileName: string): SourceCompileResult {
         const fileScope = new FileScope(fileName, classes);
         const context = ClassCompileContext.loadMainMethod(fileScope);
         
-        this.handle(node, context);
+        try {
+            this.handle(node, context);
+        } catch (e) {
+            return {
+                errorNode: this.errorNode!,
+                error: e as Error
+            };
+        }
+        return {
+            errorNode: null,
+            error: null
+        };
     }
 
     public handleProgram(node: NodeWithType, context: CompileContext): CompileResult {
@@ -78,14 +95,15 @@ class SourceCompiler {
         const namedNode: MethodDefinitionComputedName = assertNodeType(node,
             AST_NODE_TYPES.MethodDefinition);
         let name = this.handle(namedNode.key, context).getValue();
-        if (name === "constructor") {
+        const isConstructor = namedNode.kind === "constructor";
+        if (isConstructor) {
             name = "<init>";
         }
         const classContext = ClassCompileContext.assertType(context);
         const methodContext = MethodCompileContext.loadMethodContext(classContext, name);
 
         // Java requires that the first method called is "super" if the constructor does not call it
-        if (name === "<init>" && !this.callsSuper(namedNode.value)) {
+        if (isConstructor && !this.callsSuper(namedNode.value)) {
             methodContext.getCode().aloadInstr(0);
             methodContext.getCode().invokespecialInstr(classContext.clss.superClassName, "<init>", JavaMethodSignature.fromTypes([], JavaType.VOID));
         }
@@ -330,7 +348,6 @@ class SourceCompiler {
         ClassDeclaration: this.handleClassDef.bind(this),
         ClassBody: this.handleClassBody.bind(this),
         MethodDefinition: this.handleMethodDef.bind(this),
-        PropertyDefinition: this.handleNoOp.bind(this),
         FunctionExpression: this.handleFunctionExpr.bind(this),
         BlockStatement: this.handleBlock.bind(this),
 
@@ -344,18 +361,28 @@ class SourceCompiler {
 
         Literal: this.handleLiteral.bind(this),
         Identifier: this.handleIdent.bind(this),
+
+        PropertyDefinition: this.handleNoOp.bind(this),
     }
 
-    public handle(node: BaseNode, context: CompileContext): CompileResult {
+    public handle(node: NodeWithType, context: CompileContext): CompileResult {
         const handler = this.handlerMap[node.type];
         if (handler === undefined) {
             throw new Error(`No handler for ${node.type}`)
         }
-        return handler(node, context);
+
+        try {
+            return handler(node, context);
+        } catch (e) {
+            if (this.errorNode === null) {
+                this.errorNode = node as NodeWithType;
+            }
+            throw e;
+        }
     }
 }
 
-export function compileSource(ast: AST<any>, classes: JavaClass[], fileName: string) {
+export function compileSource(ast: AST<any>, classes: JavaClass[], fileName: string): SourceCompileResult {
     const compiler = new SourceCompiler();
-    compiler.compileSource(ast, classes, fileName);
+    return compiler.compileSource(ast, classes, fileName);
 }

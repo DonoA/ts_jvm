@@ -22,19 +22,39 @@ import { JavaField } from "../assembler/JavaField";
 import { CompileResult } from "./CompileResult";
 import { CommonCompiler } from "./CommonCompiler";
 
-
 type NodeHandler = (node: any, context: CompileContext) => CompileResult;
 
+export interface StructureCompileResult {
+    classes: JavaClass[];
+    
+    errorNode: NodeWithType | null;
+    error: Error | null;
+}
+
 class StructureCompiler {
+    errorNode: NodeWithType | null = null;
+
     constructor() {
     }
 
-    public compile(node: AST<any>, fileName: string): JavaClass[] {
+    public compile(node: AST<any>, fileName: string): StructureCompileResult {
         const fileScope = new FileScope(fileName);
         const context = ClassCompileContext.createMainMethod(fileScope);
         
-        this.handle(node, context);
-        return fileScope.allClasses;
+        try {
+            this.handle(node, context);
+        } catch (e) {
+            return {
+                classes: [],
+                error: e as Error,
+                errorNode: this.errorNode!
+            }
+        }
+        return {
+            classes: fileScope.allClasses,
+            error: null,
+            errorNode: null
+        };
     }
 
     public handleProgram(node: NodeWithType, context: CompileContext): CompileResult {
@@ -148,11 +168,19 @@ class StructureCompiler {
             // The structure compiler doesn't need to handle every node type
             return CompileResult.empty();
         }
-        return handler(node, context);
+
+        try {
+            return handler(node, context);
+        } catch (e) {
+            if (this.errorNode === null) {
+                this.errorNode = node as NodeWithType;
+            }
+            throw e;
+        }
     }
 }
 
-export function compileStructure(ast: AST<any>, fileName: string): JavaClass[] {
+export function compileStructure(ast: AST<any>, fileName: string): StructureCompileResult {
     const compiler = new StructureCompiler();
     return compiler.compile(ast, fileName);
 }
