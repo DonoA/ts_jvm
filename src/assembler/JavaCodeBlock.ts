@@ -109,6 +109,11 @@ export class JavaCodeBlock {
         this.codeBytes.addReturn();
     }
 
+    public areturnInstr() {
+        this.codeBytes.addInstruction([0xb0])
+        this.addStackSize(-1);
+    }
+
     public getstaticInstr(ofClass: JavaQualifiedClassName, prop: string, type: JavaCompiledClassName) {
         const fieldRefHandle = this.constantPool
             .addFieldRefWithName(ofClass, prop, type);

@@ -36,8 +36,8 @@ export function compileFile(infile: string, outfolder: string) {
 }
 
 function printError(source: string, node: NodeWithType, error: Error) {
-    console.error(`Error at line ${node.loc.start.line} col ${node.loc.start.column}: ${error.message}`);
+    console.log(`Error at line ${node.loc.start.line} col ${node.loc.start.column}: ${error.message}`);
     const snippet = source.substring(node.range[0], node.range[1]);
-    console.error(snippet);
-    console.error(error);
+    console.log(snippet);
+    console.log(error);
 }

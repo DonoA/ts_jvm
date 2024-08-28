@@ -5,8 +5,8 @@ class HelloWorldClass {
         testData = "Hello world!";
     }
 
-    public void printData() {
-        System.out.println(testData);
+    public String printData() {
+        return testData;
     }
 }
 

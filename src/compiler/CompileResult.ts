@@ -15,7 +15,7 @@ export class CompileResult {
     }
 
     static ofField(field: JavaField): CompileResult {
-        return new CompileResult(undefined, undefined, field);
+        return new CompileResult(field.type, undefined, field);
     }
 
     static empty(): CompileResult {

@@ -14,7 +14,8 @@ import {
     MethodDefinitionComputedName,
     NewExpression,
     TSEmptyBodyFunctionExpression,
-    AssignmentExpression
+    AssignmentExpression,
+    ReturnStatement
 } from "@typescript-eslint/types/dist/generated/ast-spec";
 import {JavaClass} from "../assembler/JavaClass";
 import {JavaMethodSignature} from "../assembler/JavaMethod";
@@ -26,6 +27,7 @@ import {PartialRecord} from "../util/PartialRecord";
 import {assertNodeType, NodeWithType} from "./AssertNodeType";
 import { ClassCompileContext } from "./context/ClassCompileContext";
 import { CompileResult } from "./CompileResult";
+import { CommonCompiler } from "./CommonCompiler";
 
 type NodeHandler = (node: any, context: CompileContext) => CompileResult;
 
@@ -70,7 +72,7 @@ class SourceCompiler {
     public handleClassDef(node: NodeWithType, context: CompileContext): CompileResult {
         const classDeclaration: ClassDeclaration = assertNodeType(node,
             AST_NODE_TYPES.ClassDeclaration)
-        const name = this.handle(classDeclaration.id!, context).getValue();
+        const name = CommonCompiler.getIdentValue(classDeclaration.id!, context);
         const classContext = ClassCompileContext.loadClassContext(context.fileContext, name);
 
         this.handle(classDeclaration.body, classContext);
@@ -79,8 +81,22 @@ class SourceCompiler {
     }
 
     public handleIdent(node: NodeWithType, context: CompileContext): CompileResult {
-        const identifier: Identifier = assertNodeType(node, AST_NODE_TYPES.Identifier)
-        return CompileResult.ofValue(identifier.name);
+        const identifier: Identifier = assertNodeType(node, AST_NODE_TYPES.Identifier);
+        const methodContext = MethodCompileContext.assertType(context);
+        
+        const name = identifier.name;
+
+        if(methodContext.getCode().hasLocal(name)) {
+            methodContext.getCode().aloadLocalInstr(name);
+            return CompileResult.ofType(methodContext.getCode().getLocalType(name));
+        } else if (methodContext.clss.fieldsByName.has(name)) {
+            const field = methodContext.clss.fieldsByName.get(name)!;
+            methodContext.getCode().aloadInstr(0);
+            methodContext.getCode().getfieldInstr(methodContext.clss.className, name, field.type.toTypeRefSemi());
+            return CompileResult.ofType(field.type);
+        } else {
+            throw new Error(`Variable ${name} not found`);
+        }
     }
 
     public handleClassBody(node: NodeWithType, context: CompileContext): CompileResult {
@@ -94,7 +110,7 @@ class SourceCompiler {
     public handleMethodDef(node: NodeWithType, context: CompileContext): CompileResult {
         const namedNode: MethodDefinitionComputedName = assertNodeType(node,
             AST_NODE_TYPES.MethodDefinition);
-        let name = this.handle(namedNode.key, context).getValue();
+        let name = CommonCompiler.getIdentValue(namedNode.key, context);
         const isConstructor = namedNode.kind === "constructor";
         if (isConstructor) {
             name = "<init>";
@@ -179,7 +195,7 @@ class SourceCompiler {
         const memberExpr: MemberExpression = assertNodeType(call.callee, AST_NODE_TYPES.MemberExpression);
 
         // Load function ref
-        const objIdent = this.handle(memberExpr.object, methodContext).getValue();
+        const objIdent = CommonCompiler.getIdentValue(memberExpr.object, methodContext);
 
         // Check if this is a local
         if (methodContext.getCode().hasLocal(objIdent)) {
@@ -205,7 +221,7 @@ class SourceCompiler {
             this.handle(arg, methodContext);
         });
 
-        const propName = this.handle(memberExpr.property, methodContext).getValue();
+        const propName = CommonCompiler.getIdentValue(memberExpr.property, methodContext);
         const methodMeta = methodContext.getClassMeta(type.name).methods[propName];
         methodContext.getCode().invokevirtualInstr(type.name, propName, methodMeta.sig);
 
@@ -225,7 +241,7 @@ class SourceCompiler {
             this.handle(arg, methodContext);
         });
 
-        const propName = this.handle(memberExpr.property, methodContext).getValue();
+        const propName = CommonCompiler.getIdentValue(memberExpr.property, methodContext);
         const methodMeta = methodContext.getClassMeta(type.name).methods[propName];
         methodContext.getCode().invokevirtualInstr(type.name, propName, methodMeta.sig);
 
@@ -241,7 +257,7 @@ class SourceCompiler {
             this.handle(arg, methodContext);
         });
 
-        const propName = this.handle(memberExpr.property, methodContext).getValue();
+        const propName = CommonCompiler.getIdentValue(memberExpr.property, methodContext);
         const methodMeta = methodContext.getClassMeta(qualifiedObjClass).methods[propName];
         methodContext.getCode().invokestaticInstr(qualifiedObjClass, propName,
             methodMeta.sig);
@@ -253,7 +269,7 @@ class SourceCompiler {
         const memberExpr: MemberExpression = assertNodeType(node, AST_NODE_TYPES.MemberExpression);
         const methodContext = MethodCompileContext.assertType(context);
 
-        const fieldName = this.handle(memberExpr.property, methodContext).getValue();
+        const fieldName = CommonCompiler.getIdentValue(memberExpr.property, methodContext);
         // Assume the object is a THIS
         const field = methodContext.clss.fieldsByName.get(fieldName);
         if (field === undefined) {
@@ -278,7 +294,7 @@ class SourceCompiler {
         const newExpr: NewExpression = assertNodeType(node, AST_NODE_TYPES.NewExpression);
         const methodContext = MethodCompileContext.assertType(context);
 
-        const className = this.handle(newExpr.callee, methodContext).getValue();
+        const className = CommonCompiler.getIdentValue(newExpr.callee, methodContext);
         const qualifiedClassName = methodContext.getQualifiedNameFor(className);
 
         // Load params
@@ -322,7 +338,7 @@ class SourceCompiler {
         const varDecl: VariableDeclarator = assertNodeType(node, AST_NODE_TYPES.VariableDeclarator);
         const methodContext = MethodCompileContext.assertType(context);
 
-        const name = this.handle(varDecl.id, methodContext).getValue();
+        const name = CommonCompiler.getIdentValue(varDecl.id, methodContext);
         if (varDecl.init === null) {
             throw new Error(`Variable ${name} must be initialized`);
         }
@@ -332,6 +348,21 @@ class SourceCompiler {
         methodContext.getCode().astoreLocalInstr(name);
 
         return CompileResult.empty();
+    }
+
+    public handleReturn(node: NodeWithType, context: CompileContext): CompileResult {
+        const methodContext = MethodCompileContext.assertType(context);
+        const ret: ReturnStatement = assertNodeType(node, AST_NODE_TYPES.ReturnStatement);
+
+        if (ret.argument === null) {
+            methodContext.getCode().returnInstr();
+            return CompileResult.empty();
+        }
+
+        const retValue = this.handle(ret.argument, methodContext);
+        methodContext.getCode().areturnInstr();
+
+        return CompileResult.ofType(retValue.getType());
     }
 
     public handleLiteral(node: NodeWithType, context: CompileContext): CompileResult {
@@ -358,6 +389,7 @@ class SourceCompiler {
         VariableDeclaration: this.handleVarDeclaration.bind(this),
         VariableDeclarator: this.handleVarDeclarator.bind(this),
         MemberExpression: this.handleMemberExpr.bind(this),
+        ReturnStatement: this.handleReturn.bind(this),
 
         Literal: this.handleLiteral.bind(this),
         Identifier: this.handleIdent.bind(this),
