@@ -1,7 +1,7 @@
-![Logo](https://raw.githubusercontent.com/DonoA/ts_jvm/main/TsJvm.png)
-
 ts_jvm
 ===
+![Logo](https://raw.githubusercontent.com/DonoA/ts_jvm/main/TsJvm.png)
+
 TypeScript compiler for the JVM
 
 TypeScript enables developers to write applications using strongly typed classes and interfaces. The goal of this project is to enable strictly typed TypeScript projects to run on the Java Virtual Machine.
