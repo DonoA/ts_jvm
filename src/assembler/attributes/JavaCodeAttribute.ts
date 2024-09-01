@@ -36,8 +36,7 @@ export class JavaCodeAttribute extends JavaAttribute {
         this.code = this.code.concat(bytes);
     }
 
-    public addReturn() {
-        this.addInstruction([0xb1]);
+    public setHasReturn() {
         this.hasReturn = true;
     }
 
@@ -46,7 +45,7 @@ export class JavaCodeAttribute extends JavaAttribute {
 
         if (!this.hasReturn) {
             // A return is required
-            this.addReturn();
+            this.addInstruction([0xb1]);
         }
 
         const data = toBytes(this.maxStack, 2)

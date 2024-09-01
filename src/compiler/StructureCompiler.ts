@@ -102,8 +102,13 @@ class StructureCompiler {
             name = "<init>";
         }
 
+        let modifiers = JavaMethod.ACCESS.PUBLIC;
+        if (namedNode.static) {
+            modifiers = modifiers | JavaMethod.ACCESS.STATIC;
+        }
+
         const signature = this.extractSignature(namedNode.value, context);
-        const methodContext = MethodCompileContext.createMethodContext(classContext, JavaMethod.ACCESS.PUBLIC, name, signature);
+        const methodContext = MethodCompileContext.createMethodContext(classContext, modifiers, name, signature);
 
         this.handle(namedNode.value, methodContext);
         return CompileResult.empty();

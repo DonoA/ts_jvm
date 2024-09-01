@@ -27,7 +27,7 @@ export class JavaMethodSignature {
 
     public getTypeString(): string {
         const argString = this.args.map((arg) => arg.type.toTypeRefSemi()).join("");
-        return `(${argString})${this.returns.toTypeRef()}`;
+        return `(${argString})${this.returns.toTypeRefSemi()}`;
     }
 }
 

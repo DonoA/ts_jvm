@@ -106,12 +106,14 @@ export class JavaCodeBlock {
     }
 
     public returnInstr() {
-        this.codeBytes.addReturn();
+        this.codeBytes.addInstruction([0xb1]);
+        this.codeBytes.setHasReturn();
     }
 
     public areturnInstr() {
         this.codeBytes.addInstruction([0xb0])
         this.addStackSize(-1);
+        this.codeBytes.setHasReturn();
     }
 
     public getstaticInstr(ofClass: JavaQualifiedClassName, prop: string, type: JavaCompiledClassName) {

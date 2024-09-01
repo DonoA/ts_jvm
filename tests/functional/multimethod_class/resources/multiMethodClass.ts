@@ -15,7 +15,7 @@ class MultiMethodClass {
         this.testData = data;
     }
 
-    public getTestData() {
+    public getTestData(): string {
         return this.testData;
     }
 

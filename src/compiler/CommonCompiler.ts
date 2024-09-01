@@ -4,7 +4,7 @@ import {
 import { JavaType } from "../assembler/JavaType";
 import { CompileContext } from "./context/CompileContext";
 import { TypeCompiler } from "./TypeCompiler";
-import { assertNodeType, NodeWithType } from "./AssertNodeType";
+import { NodeWithType } from "./AssertNodeType";
 import { AST_NODE_TYPES } from "@typescript-eslint/typescript-estree";
 
 export class CommonCompiler {
@@ -16,7 +16,14 @@ export class CommonCompiler {
     }
 
     public static getIdentValue(node: NodeWithType, context: CompileContext): string {
-        const ident: Identifier = assertNodeType(node, AST_NODE_TYPES.Identifier);
-        return ident.name;
+        if (node.type === AST_NODE_TYPES.Identifier) {
+            return (node as Identifier).name;
+        }
+
+        if (node.type === AST_NODE_TYPES.ThisExpression) {
+            return "this";
+        }
+
+        throw new Error("No ident for node type: " + node.type);
     }
 }

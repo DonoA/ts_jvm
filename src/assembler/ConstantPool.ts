@@ -6,8 +6,36 @@ export interface ConstantPoolInfo {
     data: uint8[];
 }
 
+type ConstantType = "utf8" | "class" | "string" | "nameAndType" | "fieldRef" | "methodRef";
+class PoolCacheKey {
+    readonly type: ConstantType;
+    readonly value: string;
+
+    constructor(type: ConstantType, value: string) {
+        this.type = type;
+        this.value = value;
+    }
+
+    public toKey(): string {
+        return `${this.type}:${this.value}`;
+    }
+
+    static fromString(type: ConstantType, str: string): PoolCacheKey {
+        return new PoolCacheKey(type, str);
+    }
+
+    static fromHandle(type: ConstantType, handle: uint16): PoolCacheKey {
+        return new PoolCacheKey(type, handle.toString());
+    }
+
+    static fromHandles(type: ConstantType, handle1: uint16, handle2: uint16): PoolCacheKey {
+        return new PoolCacheKey(type, `${handle1}-${handle2}`);
+    }
+}
+
 export class ConstantPool implements ToBytes {
     private pool: ConstantPoolInfo[];
+    private poolCache: Map<string, uint16> = new Map();
 
     constructor() {
         this.pool = [];
@@ -19,14 +47,26 @@ export class ConstantPool implements ToBytes {
     }
 
     public addClass(handle: uint16): uint16 {
+        const poolKey = PoolCacheKey.fromHandle("class", handle).toKey();
+        if (this.poolCache.has(poolKey)) {
+            return this.poolCache.get(poolKey)!;
+        }
+
         this.pool.push({
             tag: 7,
             data: toBytes(handle, 2)
         });
-        return this.pool.length;
+        const classHandle = this.pool.length;
+        this.poolCache.set(poolKey, classHandle);
+        return classHandle;
     }
 
     public addUTF8(str: string): uint16 {
+        const poolKey = PoolCacheKey.fromString("utf8", str).toKey();
+        if (this.poolCache.has(poolKey)) {
+            return this.poolCache.get(poolKey)!;
+        }
+
         const data = toBytes(str.length, 2)
         Buffer.from(str, "utf-8").forEach((value) => {
             data.push(value);
@@ -35,7 +75,9 @@ export class ConstantPool implements ToBytes {
             tag: 1,
             data
         });
-        return this.pool.length;
+        const handle = this.pool.length;
+        this.poolCache.set(poolKey, handle);
+        return handle;
     }
 
     public addStringWithValue(value: string): uint16 {
@@ -44,27 +86,48 @@ export class ConstantPool implements ToBytes {
     }
 
     public addString(handle: uint16): uint16 {
+        const poolKey = PoolCacheKey.fromHandle("string", handle).toKey();
+        if (this.poolCache.has(poolKey)) {
+            return this.poolCache.get(poolKey)!;
+        }
+
         this.pool.push({
             tag: 8,
             data: toBytes(handle, 2)
         });
-        return this.pool.length;
+        const stringHandle = this.pool.length;
+        this.poolCache.set(poolKey, stringHandle);
+        return stringHandle;
     }
 
     public addNameAndType(nameHandle: uint16, descHandle: uint16): uint16 {
+        const poolKey = PoolCacheKey.fromHandles("nameAndType", nameHandle, descHandle).toKey();
+        if (this.poolCache.has(poolKey)) {
+            return this.poolCache.get(poolKey)!;
+        }
+
         this.pool.push({
             tag: 12,
             data: toBytes(nameHandle, 2).concat(toBytes(descHandle, 2))
         });
-        return this.pool.length;
+        const nameAndTypeHandle = this.pool.length;
+        this.poolCache.set(poolKey, nameAndTypeHandle);
+        return nameAndTypeHandle;
     }
 
     public addFieldRef(classHandle: uint16, nameAndTypeHandle: uint16): uint16 {
+        const poolKey = PoolCacheKey.fromHandles("fieldRef", classHandle, nameAndTypeHandle).toKey();
+        if (this.poolCache.has(poolKey)) {
+            return this.poolCache.get(poolKey)!;
+        }
+
         this.pool.push({
             tag: 9,
             data: toBytes(classHandle, 2).concat(toBytes(nameAndTypeHandle, 2))
         });
-        return this.pool.length;
+        const fieldRefHandle = this.pool.length;
+        this.poolCache.set(poolKey, fieldRefHandle);
+        return fieldRefHandle;
     }
 
     public addFieldRefWithName(className: JavaQualifiedClassName, fieldName: string, fieldType: JavaCompiledClassName): uint16 {
@@ -76,11 +139,18 @@ export class ConstantPool implements ToBytes {
     }
 
     public addMethodRef(classHandle: uint16, nameAndTypeHandle: uint16): uint16 {
+        const poolKey = PoolCacheKey.fromHandles("methodRef", classHandle, nameAndTypeHandle).toKey();
+        if (this.poolCache.has(poolKey)) {
+            return this.poolCache.get(poolKey)!;
+        } 
+
         this.pool.push({
             tag: 10,
             data: toBytes(classHandle, 2).concat(toBytes(nameAndTypeHandle, 2))
         });
-        return this.pool.length;
+        const methodRefHandle = this.pool.length;
+        this.poolCache.set(poolKey, methodRefHandle);
+        return methodRefHandle;
     }
 
     public addMethodRefWithName(className: string, methodName: string, methodType: string): uint16 {

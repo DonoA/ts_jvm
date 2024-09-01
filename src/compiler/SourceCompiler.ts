@@ -209,6 +209,7 @@ class SourceCompiler {
         }
     }
 
+
     private compileLocalMethodCall(objIdent: string, call: CallExpression, methodContext: MethodCompileContext): CompileResult {
         const memberExpr: MemberExpression = assertNodeType(call.callee, AST_NODE_TYPES.MemberExpression);
         const type = methodContext.getCode().getLocalType(objIdent);
