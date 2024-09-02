@@ -147,6 +147,9 @@ class SourceCompiler {
         const name = CommonCompiler.getIdentValue(propertyNode.key);
         const fieldInitContext = MethodCompileContext.forJavaCode(classContext, classContext.ctrFieldInit);
 
+        // Load this onto stack
+        initCode.aloadInstr(0);
+
         // Load value onto stack
         this.handle(propertyNode.value, fieldInitContext);
         const field = classContext.clss.getField(name);
