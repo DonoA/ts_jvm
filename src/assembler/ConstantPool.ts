@@ -1,5 +1,5 @@
 import { JavaCompiledClassName, JavaQualifiedClassName } from "./JavaType";
-import {ToBytes, uint16, uint8, toBytes} from "./utils";
+import {ToBytes, uint16, uint8, asBytes} from "./utils";
 
 export interface ConstantPoolInfo {
     tag: uint8;
@@ -54,7 +54,7 @@ export class ConstantPool implements ToBytes {
 
         this.pool.push({
             tag: 7,
-            data: toBytes(handle, 2)
+            data: asBytes(handle, 2)
         });
         const classHandle = this.pool.length;
         this.poolCache.set(poolKey, classHandle);
@@ -67,7 +67,7 @@ export class ConstantPool implements ToBytes {
             return this.poolCache.get(poolKey)!;
         }
 
-        const data = toBytes(str.length, 2)
+        const data = asBytes(str.length, 2)
         Buffer.from(str, "utf-8").forEach((value) => {
             data.push(value);
         })
@@ -93,7 +93,7 @@ export class ConstantPool implements ToBytes {
 
         this.pool.push({
             tag: 8,
-            data: toBytes(handle, 2)
+            data: asBytes(handle, 2)
         });
         const stringHandle = this.pool.length;
         this.poolCache.set(poolKey, stringHandle);
@@ -108,7 +108,7 @@ export class ConstantPool implements ToBytes {
 
         this.pool.push({
             tag: 12,
-            data: toBytes(nameHandle, 2).concat(toBytes(descHandle, 2))
+            data: asBytes(nameHandle, 2).concat(asBytes(descHandle, 2))
         });
         const nameAndTypeHandle = this.pool.length;
         this.poolCache.set(poolKey, nameAndTypeHandle);
@@ -123,7 +123,7 @@ export class ConstantPool implements ToBytes {
 
         this.pool.push({
             tag: 9,
-            data: toBytes(classHandle, 2).concat(toBytes(nameAndTypeHandle, 2))
+            data: asBytes(classHandle, 2).concat(asBytes(nameAndTypeHandle, 2))
         });
         const fieldRefHandle = this.pool.length;
         this.poolCache.set(poolKey, fieldRefHandle);
@@ -146,7 +146,7 @@ export class ConstantPool implements ToBytes {
 
         this.pool.push({
             tag: 10,
-            data: toBytes(classHandle, 2).concat(toBytes(nameAndTypeHandle, 2))
+            data: asBytes(classHandle, 2).concat(asBytes(nameAndTypeHandle, 2))
         });
         const methodRefHandle = this.pool.length;
         this.poolCache.set(poolKey, methodRefHandle);
@@ -162,7 +162,7 @@ export class ConstantPool implements ToBytes {
     }
 
     public toBytes(): uint8[] {
-        let bytes = toBytes(this.pool.length + 1, 2);
+        let bytes = asBytes(this.pool.length + 1, 2);
         this.pool.forEach((entry) => {
             bytes.push(entry.tag)
             bytes = bytes.concat(entry.data);

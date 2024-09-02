@@ -1,9 +1,11 @@
+import { FieldMeta } from "../compiler/meta/FieldMeta";
 import { JavaCodeAttribute } from "./attributes/JavaCodeAttribute";
 import {ConstantPool} from "./ConstantPool";
-import { JavaField } from "./JavaField";
-import {JavaMethod, JavaMethodSignature} from "./JavaMethod";
+import { ByteProvider } from "./instr/ByteProvider";
+import { JavaInstr } from "./instr/JavaInstr";
+import { JavaMethodSignature} from "./JavaMethod";
 import { JavaCompiledClassName, JavaQualifiedClassName, JavaType } from "./JavaType";
-import {toBytes} from "./utils";
+import {asBytes, concatToBytes} from "./utils";
 
 interface JavaLocal {
     name: string;
@@ -11,32 +13,23 @@ interface JavaLocal {
     type: JavaType;
 }
 
-export class JavaCodeBlock {
-    private readonly javaMethod: JavaMethod;
-    private readonly constantPool: ConstantPool;
+export class JavaCode {
     private readonly localByName: Map<string, JavaLocal>;
     private locals: JavaLocal[];
 
     private maxStack: number;
     private currentStack: number;
-    private codeBytes: JavaCodeAttribute;
+    private instructions: JavaInstr[];
 
-    constructor(javaMethod: JavaMethod, constantPool: ConstantPool) {
-        this.javaMethod = javaMethod;
-        this.constantPool = constantPool;
+    private hasReturn: boolean;
 
+    constructor() {
         this.maxStack = this.currentStack = 0;
-        this.codeBytes = new JavaCodeAttribute(constantPool);
+        this.instructions = [];
 
         this.localByName = new Map();
         this.locals = [];
-        // THIS is always the first local
-        if ((javaMethod.accessFlags & JavaMethod.ACCESS.STATIC) === 0) {
-            this.addLocal("this", javaMethod.clss.asType());
-        }
-        javaMethod.signature.args.forEach((arg) => {
-            this.addLocal(arg.name, arg.type);
-        });
+        this.hasReturn = false;
     }
 
     private addStackSize(count: number) {
@@ -46,11 +39,9 @@ export class JavaCodeBlock {
         }
 
         this.maxStack = Math.max(this.maxStack, this.currentStack);
-        this.codeBytes.setStackSize(this.maxStack);
     }
 
     public addLocal(name: string, type: JavaType) {
-        this.codeBytes.addLocal();
         const newLocal = {name, localIndex: this.locals.length, type};
         this.locals.push(newLocal);
         this.localByName.set(name, newLocal);
@@ -68,87 +59,94 @@ export class JavaCodeBlock {
         return this.localByName.has(name);
     }
 
+    private addInstr(opCode: number, args: ByteProvider[]) {
+        this.instructions.push(new JavaInstr(opCode, args));
+    }
+
     public loadconstInstr(value: string) {
-        const stringHandle = this.constantPool.addStringWithValue(value);
-        this.codeBytes.addInstruction([0x12, ...toBytes(stringHandle, 1)])
+        const stringHandle = ByteProvider.fromProvider((pool) => pool.addStringWithValue(value), 1);
+        this.addInstr(0x12, [stringHandle]);
 
         this.addStackSize(1);
     }
 
     public dupInstr() {
-        this.codeBytes.addInstruction([0x59])
+        this.addInstr(0x59, []);
 
         this.addStackSize(1);
     }
 
     public invokevirtualInstr(ofClass: JavaQualifiedClassName, prop: string,
                             typeSignature: JavaMethodSignature) {
-        const methodRefHandle = this.constantPool.addMethodRefWithName(ofClass,
-            prop, typeSignature.getTypeString());
-        this.codeBytes.addInstruction([0xb6, ...toBytes(methodRefHandle, 2)])
+        const methodRefHandle = ByteProvider.fromProvider((pool) => pool.addMethodRefWithName(
+            ofClass, prop, typeSignature.getTypeString()), 2);
+
+        this.addInstr(0xb6, [methodRefHandle]);
         this.addStackSize(-typeSignature.args.length);
     }
 
     public invokespecialInstr(ofClass: JavaQualifiedClassName, prop: string,
                             typeSignature: JavaMethodSignature) {
-        const methodRefHandle = this.constantPool.addMethodRefWithName(ofClass,
-        prop, typeSignature.getTypeString());
-        this.codeBytes.addInstruction([0xb7, ...toBytes(methodRefHandle, 2)])
+        const methodRefHandle = ByteProvider.fromProvider((pool) => pool.addMethodRefWithName(
+            ofClass, prop, typeSignature.getTypeString()), 2);
+
+        this.addInstr(0xb7, [methodRefHandle]);
         this.addStackSize(-typeSignature.args.length);
     }
 
     public invokestaticInstr(ofClass: JavaQualifiedClassName, prop: string,
                             typeSignature: JavaMethodSignature) {
-        const methodRefHandle = this.constantPool.addMethodRefWithName(ofClass,
-            prop, typeSignature.getTypeString());
-        this.codeBytes.addInstruction([0xb8, ...toBytes(methodRefHandle, 2)])
+        const methodRefHandle = ByteProvider.fromProvider((pool) => pool.addMethodRefWithName(
+            ofClass, prop, typeSignature.getTypeString()), 2);
+
+        this.addInstr(0xb8, [methodRefHandle]);
         this.addStackSize(-typeSignature.args.length);
     }
 
     public returnInstr() {
-        this.codeBytes.addInstruction([0xb1]);
-        this.codeBytes.setHasReturn();
+        this.addInstr(0xb1, []);
+        this.hasReturn = true;
     }
 
     public areturnInstr() {
-        this.codeBytes.addInstruction([0xb0])
+        this.addInstr(0xb0, []);
         this.addStackSize(-1);
-        this.codeBytes.setHasReturn();
+        this.hasReturn = true;
     }
 
     public getstaticInstr(ofClass: JavaQualifiedClassName, prop: string, type: JavaCompiledClassName) {
-        const fieldRefHandle = this.constantPool
-            .addFieldRefWithName(ofClass, prop, type);
-        this.codeBytes.addInstruction([0xb2, ...toBytes(fieldRefHandle, 2)])
+        const fieldRefHandle = ByteProvider.fromProvider((pool) =>
+            pool.addFieldRefWithName(ofClass, prop, type), 2);
+        this.addInstr(0xb2, [fieldRefHandle]);
 
         this.addStackSize(1);
     }
 
     public getfieldInstr(ofClass: JavaQualifiedClassName, prop: string, type: JavaCompiledClassName) {
-        const fieldRefHandle = this.constantPool
-            .addFieldRefWithName(ofClass, prop, type);
-        this.codeBytes.addInstruction([0xb4, ...toBytes(fieldRefHandle, 2)])
+        const fieldRefHandle = ByteProvider.fromProvider((pool) =>
+            pool.addFieldRefWithName(ofClass, prop, type), 2);
+        this.addInstr(0xb4, [fieldRefHandle]);
 
         this.addStackSize(0);
     }
 
-    public putfieldInstr(field: JavaField) {
-        const fieldRefHandle = this.constantPool
-            .addFieldRefWithName(field.clss.className, field.name, field.type.toTypeRefSemi());
-        this.codeBytes.addInstruction([0xb5, ...toBytes(fieldRefHandle, 2)])
+    public putfieldInstr(field: FieldMeta) {
+        const fieldRefHandle = ByteProvider.fromProvider((pool) =>
+            pool.addFieldRefWithName(field.parent.name, field.name, field.clss.toTypeRefSemi()), 2);
+        this.addInstr(0xb5, [fieldRefHandle]);
 
         this.addStackSize(-2);
     }
 
     public newInstr(className: JavaQualifiedClassName) {
-        const classHandle = this.constantPool.addClassWithName(className);
-        this.codeBytes.addInstruction([0xbb, ...toBytes(classHandle, 2)])
+        const classHandle = ByteProvider.fromProvider((pool) => pool.addClassWithName(className), 2);
+        this.addInstr(0xbb, [classHandle]);
 
         this.addStackSize(1);
     }
 
     public astoreInstr(index: number) {
-        this.codeBytes.addInstruction([0x3a, ...toBytes(index, 1)])
+        this.addInstr(0x3a, [ByteProvider.fromValue(index, 1)]);
 
         this.addStackSize(-1);
         this.addLocal(`local${index}`, JavaType.OBJECT);
@@ -160,12 +158,12 @@ export class JavaCodeBlock {
             throw new Error(`Local ${name} not found`);
         }
 
-        this.codeBytes.addInstruction([0x3a, ...toBytes(local.localIndex, 1)])
+        this.addInstr(0x3a, [ByteProvider.fromValue(local.localIndex, 1)])
         this.addStackSize(-1);
     }
 
     public aloadInstr(index: number) {
-        this.codeBytes.addInstruction([0x19, ...toBytes(index, 1)]);
+        this.addInstr(0x19, [ByteProvider.fromValue(index, 1)]);
         
         this.addStackSize(1);
     }
@@ -175,13 +173,26 @@ export class JavaCodeBlock {
         if (local === undefined) {
             throw new Error(`Local ${name} not found`);
         }
-        this.codeBytes.addInstruction([0x19, ...toBytes(local.localIndex, 1)]);
+        this.addInstr(0x19, [ByteProvider.fromValue(local.localIndex, 1)]);
         
         this.addStackSize(1);
     }
 
+    public injectAtHead(otherCode: JavaCode) {
+        this.instructions = otherCode.instructions.concat(this.instructions);
+        this.maxStack = Math.max(this.maxStack, otherCode.maxStack);
+        otherCode.locals.forEach((local) => {
+            this.addLocal(local.name, local.type);
+        });
+    }
 
-    public getCodeAttribute(): JavaCodeAttribute {
-        return this.codeBytes;
+    public toCodeAttribute(pool: ConstantPool): JavaCodeAttribute {
+        if (!this.hasReturn) {
+            this.returnInstr();
+        }
+
+        const codeBytes = concatToBytes(this.instructions, pool);
+
+        return new JavaCodeAttribute(this.maxStack, this.locals.length, codeBytes);
     }
 }

@@ -1,10 +1,6 @@
 class HelloWorldClass {
-    public String testData;
+    public String testData = "Hello world!";
     
-    public HelloWorldClass() {
-        testData = "Hello world!";
-    }
-
     public String printData() {
         return testData;
     }

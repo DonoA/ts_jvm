@@ -15,6 +15,10 @@ export class Lazy<T> {
         return this.value;
     }
 
+    public set(newValue: T) {
+        this.value = newValue;
+    }
+
     public present(): boolean {
         return this.value !== null;
     }

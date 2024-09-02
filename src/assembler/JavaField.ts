@@ -1,7 +1,8 @@
 import { JavaAttribute } from "./attributes/JavaAttribute";
+import { ConstantPool } from "./ConstantPool";
 import { JavaClass } from "./JavaClass";
 import { JavaType } from "./JavaType";
-import { concatToBytes, toBytes, ToBytes, uint16, uint8 } from "./utils";
+import { concatToBytes, asBytes, ToBytes, uint16, uint8 } from "./utils";
 
 export class JavaField implements ToBytes {
     static ACCESS = {
@@ -30,14 +31,14 @@ export class JavaField implements ToBytes {
         this.attributes = [];
     }
 
-    toBytes(): uint8[] {
-        const nameHandle = this.clss.constantPool.addUTF8(this.name);
-        const sigHandle = this.clss.constantPool.addUTF8(this.type.toTypeRefSemi());
+    toBytes(pool: ConstantPool): uint8[] {
+        const nameHandle = pool.addUTF8(this.name);
+        const sigHandle = pool.addUTF8(this.type.toTypeRefSemi());
 
-        return toBytes(this.accessFlags, 2)
-            .concat(toBytes(nameHandle, 2))
-            .concat(toBytes(sigHandle, 2))
-            .concat(toBytes(this.attributes.length, 2))
-            .concat(concatToBytes(this.attributes))
+        return asBytes(this.accessFlags, 2)
+            .concat(asBytes(nameHandle, 2))
+            .concat(asBytes(sigHandle, 2))
+            .concat(asBytes(this.attributes.length, 2))
+            .concat(concatToBytes(this.attributes, pool))
     }
 }

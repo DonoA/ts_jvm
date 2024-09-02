@@ -15,13 +15,13 @@ export class FileScope {
         this.loadedClasses = new Map<string, ClassMeta>();
         this.loadedClasses.set(JavaType.OBJECT.name, {
             name: "Object",
-            qualifiedName: JavaType.OBJECT,
+            type: JavaType.OBJECT,
             fields: {},
             methods: {}
         });
         this.loadedClasses.set("me/doallen/tsjvm/Console", {
             name: "Console",
-            qualifiedName: JavaType.forClass("me/doallen/tsjvm/Console"),
+            type: JavaType.forClass("me/doallen/tsjvm/Console"),
             fields: {},
             methods: {
                 "log": {
@@ -70,37 +70,12 @@ export class FileScope {
 
     public addClass(cls: JavaClass) {
         this.allClasses.push(cls);
-        this.loadedClasses.set(cls.className, this.toClassMeta(cls));
+        this.loadedClasses.set(cls.className, ClassMeta.fromJavaClass(cls));
         this.importedClasses.set(cls.className, cls.className);
     }
 
     public getClass(name: JavaSimpleClassName): JavaClass | undefined {
         const qualifiedName = this.importedClasses.get(name);
         return this.allClasses.find((cls) => cls.className === qualifiedName);
-    }
-
-    private toClassMeta(cls: JavaClass): ClassMeta {
-        const fields: Record<string, FieldMeta> = {};
-        cls.fields.forEach((field) => {
-            fields[field.name] = {
-                name: field.name,
-                classes: [field.type],
-            };
-        });
-
-        const methods: Record<string, {name: string, sig: JavaMethodSignature}> = {};
-        cls.methods.forEach((method) => {
-            methods[method.name] = {
-                name: method.name,
-                sig: method.signature,
-            };
-        });
-
-        return {
-            name: cls.className,
-            qualifiedName: JavaType.forClass(cls.className),
-            fields,
-            methods,
-        };
     }
 }

@@ -1,6 +1,6 @@
 import {compileAndRun} from "../../helpers";
 
-test('Hello Class', async () => {
+test('Multi Method Class', async () => {
     const output = await compileAndRun(__dirname, "multiMethodClass.ts",
         "MultiMethodClassMain");
     expect(output.output).toBe("Hello Multi Method Class!\n");

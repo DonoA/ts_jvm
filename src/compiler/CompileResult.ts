@@ -1,10 +1,11 @@
 import { JavaField } from "../assembler/JavaField";
 import { JavaType } from "../assembler/JavaType";
+import { FieldMeta } from "./meta/FieldMeta";
 
 export class CompileResult {
     private readonly type?: JavaType;
     private readonly value?: string;
-    private readonly field?: JavaField;
+    private readonly field?: FieldMeta;
 
     static ofType(type: JavaType): CompileResult {
         return new CompileResult(type);
@@ -14,15 +15,15 @@ export class CompileResult {
         return new CompileResult(undefined, value);
     }
 
-    static ofField(field: JavaField): CompileResult {
-        return new CompileResult(field.type, undefined, field);
+    static ofField(field: FieldMeta): CompileResult {
+        return new CompileResult(field.clss, undefined, field);
     }
 
     static empty(): CompileResult {
         return new CompileResult();
     }
 
-    private constructor(type?: JavaType, value?: string, field?: JavaField) {
+    private constructor(type?: JavaType, value?: string, field?: FieldMeta) {
         this.type = type;
         this.value = value;
         this.field = field;
@@ -54,7 +55,7 @@ export class CompileResult {
         return this.field !== undefined;
     }
 
-    public getField(): JavaField {
+    public getField(): FieldMeta {
         if (!this.field) {
             throw new Error(`No field available`);
         }

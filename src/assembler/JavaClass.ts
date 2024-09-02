@@ -1,9 +1,10 @@
-import {concatToBytes, toBytes, uint16, uint32, uint8} from "./utils";
+import {concatToBytes, asBytes, uint16, uint32, uint8} from "./utils";
 import {ConstantPool} from "./ConstantPool";
 import {JavaMethod, JavaMethodSignature} from "./JavaMethod";
 import {JavaAttribute} from "./attributes/JavaAttribute";
 import { JavaQualifiedClassName, JavaType } from "./JavaType";
 import { JavaField } from "./JavaField";
+import { JavaCode } from "./JavaCode";
 
 const JAVA_MAGIC = 0xcafebabe;
 
@@ -18,6 +19,7 @@ export class JavaClass {
     readonly fieldsByName: Map<string, JavaField> = new Map();
     readonly methodsByName: Map<string, JavaMethod> = new Map();
     readonly superClassName: JavaQualifiedClassName;
+    readonly constructorCode: JavaCode; // Code that will be added to the constructor
 
     readonly magic: uint32 = JAVA_MAGIC;
     readonly minorVersion: uint16;
@@ -55,6 +57,8 @@ export class JavaClass {
         this.fields = [];
         this.methods = [];
         this.attributes = [];
+
+        this.constructorCode = new JavaCode();
     }
 
     public addField(accessFlags: uint16, name: string, type: JavaType): JavaField {
@@ -91,7 +95,7 @@ export class JavaClass {
         if (signature.returns !== JavaType.VOID) {
             throw new Error("Constructor must return void");
         }
-        const method = new JavaMethod(this, accessFlags, "<init>", signature);
+        const method = new JavaMethod(this, accessFlags, "<init>", signature, this.constructorCode);
         this.methods.push(method);
         this.methodsByName.set("<init>", method);
         return method;
@@ -102,21 +106,21 @@ export class JavaClass {
     }
 
     toBytes(): uint8[] {
-        const methods = concatToBytes(this.methods);
-        const fields = concatToBytes(this.fields);
+        const methods = concatToBytes(this.methods, this.constantPool);
+        const fields = concatToBytes(this.fields, this.constantPool);
 
-        return toBytes(this.magic, 4)
-            .concat(toBytes(this.minorVersion, 2))
-            .concat(toBytes(this.majorVersion, 2))
+        return asBytes(this.magic, 4)
+            .concat(asBytes(this.minorVersion, 2))
+            .concat(asBytes(this.majorVersion, 2))
             .concat(this.constantPool.toBytes())
-            .concat(toBytes(this.accessFlags, 2))
-            .concat(toBytes(this.thisClass, 2))
-            .concat(toBytes(this.superClass, 2))
-            .concat(toBytes(this.interfaces.length, 2))
-            .concat(toBytes(this.fields.length, 2))
+            .concat(asBytes(this.accessFlags, 2))
+            .concat(asBytes(this.thisClass, 2))
+            .concat(asBytes(this.superClass, 2))
+            .concat(asBytes(this.interfaces.length, 2))
+            .concat(asBytes(this.fields.length, 2))
             .concat(fields)
-            .concat(toBytes(this.methods.length, 2))
+            .concat(asBytes(this.methods.length, 2))
             .concat(methods)
-            .concat(toBytes(this.attributes.length, 2));
+            .concat(asBytes(this.attributes.length, 2));
     }
 }

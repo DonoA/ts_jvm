@@ -1,4 +1,4 @@
-import {concatToBytes, toBytes, uint16, uint8} from "../utils";
+import {concatToBytes, asBytes, uint16, uint8} from "../utils";
 import {JavaAttribute} from "./JavaAttribute";
 import {ConstantPool} from "../ConstantPool";
 
@@ -8,56 +8,33 @@ export class JavaCodeAttribute extends JavaAttribute {
     private code: uint8[];
     private exceptionTable: any[];
     private attributes: JavaAttribute[];
-    private hasReturn: boolean;
 
-    private readonly constantPool: ConstantPool;
-
-    constructor(constantPool: ConstantPool) {
+    constructor(
+        maxStack: number,
+        maxLocals: number,
+        code: number[],
+    ) {
         super();
-        this.maxStack = 0;
-        this.maxLocals = 0;
-        this.code = [];
+        this.maxStack = maxStack;
+        this.maxLocals = maxLocals;
+        this.code = code;
         this.exceptionTable = [];
         this.attributes = [];
-        this.hasReturn = false;
-
-        this.constantPool = constantPool;
     }
 
-    public setStackSize(count: uint8) {
-        this.maxStack = (count);
-    }
+    public toBytes(pool: ConstantPool): uint8[] {
+        const nameIdx = pool.addUTF8("Code");
 
-    public addLocal(count?: uint8) {
-        this.maxLocals += (count ?? 1);
-    }
-
-    public addInstruction(bytes: uint8[]) {
-        this.code = this.code.concat(bytes);
-    }
-
-    public setHasReturn() {
-        this.hasReturn = true;
-    }
-
-    public toBytes(): uint8[] {
-        const nameIdx = this.constantPool.addUTF8("Code");
-
-        if (!this.hasReturn) {
-            // A return is required
-            this.addInstruction([0xb1]);
-        }
-
-        const data = toBytes(this.maxStack, 2)
-            .concat(toBytes(this.maxLocals, 2))
-            .concat(toBytes(this.code.length, 4))
+        const data = asBytes(this.maxStack, 2)
+            .concat(asBytes(this.maxLocals, 2))
+            .concat(asBytes(this.code.length, 4))
             .concat(this.code)
-            .concat(toBytes(this.exceptionTable.length, 2))
-            .concat(toBytes(this.attributes.length, 2))
-            .concat(concatToBytes(this.attributes));
+            .concat(asBytes(this.exceptionTable.length, 2))
+            .concat(asBytes(this.attributes.length, 2))
+            .concat(concatToBytes(this.attributes, pool));
 
-        return toBytes(nameIdx, 2)
-            .concat(toBytes(data.length, 4))
+        return asBytes(nameIdx, 2)
+            .concat(asBytes(data.length, 4))
             .concat(data);
     }
 }

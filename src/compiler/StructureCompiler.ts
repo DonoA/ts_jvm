@@ -69,7 +69,7 @@ class StructureCompiler {
     public handleClassDef(node: NodeWithType, context: CompileContext): CompileResult {
         const classDeclaration: ClassDeclaration = assertNodeType(node,
             AST_NODE_TYPES.ClassDeclaration)
-        const name = CommonCompiler.getIdentValue(classDeclaration.id!, context);
+        const name = CommonCompiler.getIdentValue(classDeclaration.id!);
         let superClassName = classDeclaration.superClass ?
             this.handle(classDeclaration.superClass, context).getValue() : "Object";
         const superClass = context.getQualifiedNameFor(superClassName);
@@ -78,6 +78,10 @@ class StructureCompiler {
         const newContext = ClassCompileContext.createClassContext(context.fileContext, clss);
 
         this.handle(classDeclaration.body, newContext);
+        
+        if (!clss.methodsByName.has("<init>")) {
+            clss.addMethod(JavaMethod.ACCESS.PUBLIC, "<init>", new JavaMethodSignature([], JavaType.VOID));
+        }
 
         context.fileContext.addClass(clss); // Add class to file scope, must be done after methods/fields are added
 
@@ -97,7 +101,7 @@ class StructureCompiler {
             AST_NODE_TYPES.MethodDefinition);
         const classContext = ClassCompileContext.assertType(context);
 
-        let name = CommonCompiler.getIdentValue(namedNode.key, context);
+        let name = CommonCompiler.getIdentValue(namedNode.key);
         if (name === "constructor") {
             name = "<init>";
         }
@@ -108,7 +112,8 @@ class StructureCompiler {
         }
 
         const signature = this.extractSignature(namedNode.value, context);
-        const methodContext = MethodCompileContext.createMethodContext(classContext, modifiers, name, signature);
+        const method = classContext.clss.addMethod(modifiers, name, signature);
+        const methodContext = MethodCompileContext.forJavaCode(classContext, method.code);
 
         this.handle(namedNode.value, methodContext);
         return CompileResult.empty();
@@ -135,7 +140,7 @@ class StructureCompiler {
     public handlePropertyDef(node: NodeWithType, context: CompileContext): CompileResult {
         const propertyNode: PropertyDefinition = assertNodeType(node,
             AST_NODE_TYPES.PropertyDefinition);
-        const name = CommonCompiler.getIdentValue(propertyNode.key, context);
+        const name = CommonCompiler.getIdentValue(propertyNode.key);
         const classContext = ClassCompileContext.assertType(context);
 
         const type = CommonCompiler.extractTypeFromHint(propertyNode.typeAnnotation, context);
